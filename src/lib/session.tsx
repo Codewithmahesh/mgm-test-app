@@ -16,6 +16,8 @@ type Session = {
 }
 
 const KEY = 'mgm.session'
+/** The last profile loaded, so the app can open straight away on launch and refresh it in the background. */
+const PROFILE_KEY = 'mgm.session.profile'
 const SessionContext = createContext<Session | null>(null)
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -30,11 +32,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setTeacher(null)
     setStudent(null)
     await SecureStore.deleteItemAsync(KEY).catch(() => {})
+    await SecureStore.deleteItemAsync(PROFILE_KEY).catch(() => {})
   }, [])
 
   const loadProfile = useCallback(async (which: Role) => {
-    if (which === 'faculty') setTeacher((await api<{ teacher: TeacherInfo }>('/api/auth/me')).teacher)
-    else setStudent((await api<{ student: StudentRow }>('/api/student/me')).student)
+    const profile = which === 'faculty'
+      ? (await api<{ teacher: TeacherInfo }>('/api/auth/me')).teacher
+      : (await api<{ student: StudentRow }>('/api/student/me')).student
+    if (which === 'faculty') setTeacher(profile as TeacherInfo)
+    else setStudent(profile as StudentRow)
+    await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile)).catch(() => {})
   }, [])
 
   // Restore the saved sign-in on launch.
@@ -47,8 +54,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           const parsed = JSON.parse(saved) as { role: Role; token: string }
           setApiToken(parsed.token)
           setRole(parsed.role)
+          let profile: unknown = null
+          try { profile = JSON.parse((await SecureStore.getItemAsync(PROFILE_KEY)) ?? 'null') } catch {}
+          if (profile) {
+            // Open with the saved profile now; the fresh one replaces it when the server answers.
+            if (parsed.role === 'faculty') setTeacher(profile as TeacherInfo)
+            else setStudent(profile as StudentRow)
+            void loadProfile(parsed.role).catch(() => {})
+          }
           // Offline at launch: keep the session, the profile loads on the next refresh.
-          await loadProfile(parsed.role).catch(() => {})
+          else await loadProfile(parsed.role).catch(() => {})
         }
       } finally {
         setReady(true)

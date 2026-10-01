@@ -5,12 +5,12 @@ import { ScrollView, View } from 'react-native'
 import { AppHeader } from '@/components/app-shell'
 import { RoomRow } from '@/components/room-row'
 import { Alert, Button, Card, Divider, EmptyState, Input, PageLoader, Screen, Segmented } from '@/components/ui'
-import { api, errorMessage, type Room, type RoomStatus } from '@/lib/api'
+import { api, cached, errorMessage, type Room, type RoomStatus } from '@/lib/api'
 import { useColors } from '@/theme'
 
 export default function ExamsTab() {
   const c = useColors()
-  const [rooms, setRooms] = useState<Room[] | null>(null)
+  const [rooms, setRooms] = useState<Room[] | null>(() => cached<{ rooms: Room[] }>('/api/rooms')?.rooms ?? null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'all' | RoomStatus>('all')
   const [query, setQuery] = useState('')

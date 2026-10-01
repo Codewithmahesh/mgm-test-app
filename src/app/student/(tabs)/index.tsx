@@ -6,7 +6,7 @@ import { AppHeader } from '@/components/app-shell'
 import { BarChart } from '@/components/bar-chart'
 import { NavyBanner } from '@/components/brand'
 import { Alert, Badge, Button, Card, CardHeader, Divider, EmptyState, Eyebrow, PageLoader, Screen, StatCard, Text } from '@/components/ui'
-import { api, errorMessage, formatDate, relativeTime, type MyAttempt } from '@/lib/api'
+import { api, cached, errorMessage, formatDate, relativeTime, type MyAttempt } from '@/lib/api'
 import { useSession } from '@/lib/session'
 import { fonts, radius, useColors } from '@/theme'
 
@@ -14,7 +14,7 @@ export default function StudentHome() {
   const { student } = useSession()
   const c = useColors()
   const [code, setCode] = useState('')
-  const [attempts, setAttempts] = useState<MyAttempt[] | null>(null)
+  const [attempts, setAttempts] = useState<MyAttempt[] | null>(() => cached<{ attempts: MyAttempt[] }>('/api/student/attempts')?.attempts ?? null)
   const [error, setError] = useState('')
 
   const load = useCallback(() => api<{ attempts: MyAttempt[] }>('/api/student/attempts').then(d => { setAttempts(d.attempts); setError('') }).catch(err => setError(errorMessage(err))), [])

@@ -16,46 +16,80 @@ export class ApiError extends Error {
 let token: string | null = null
 let onUnauthorized: (() => void) | null = null
 
+/**
+ * The last answer to each GET, so a screen opened again shows what it had at once and refreshes in the
+ * background, instead of a spinner for the round trip to the server. Cleared on sign-out.
+ */
+const responses = new Map<string, unknown>()
+export const cached = <T>(path: string) => responses.get(path) as T | undefined
+
 /** Set by the session provider after sign-in (and cleared on sign-out). */
-export function setApiToken(value: string | null) { token = value }
+export function setApiToken(value: string | null) {
+  if (value !== token) responses.clear()
+  token = value
+}
 /** Called when the server says the session is no longer valid, so the app can return to sign-in. */
 export function setUnauthorizedHandler(handler: (() => void) | null) { onUnauthorized = handler }
 
 type Options = { method?: string; body?: unknown; headers?: Record<string, string>; signal?: AbortSignal; timeoutMs?: number }
 
-/** AI generation parts can run for minutes on the server (maxDuration 300 s); everything else should answer quickly. */
-const defaultTimeout = (path: string, isForm: boolean) => (/\/generation-jobs|\/generate-questions/.test(path) ? 310_000 : isForm ? 120_000 : 30_000)
+/**
+ * Requests that can run for minutes on the server (maxDuration 300 s): AI generation, and anything that
+ * may submit attempts, since grading runs the students' code (attempt lists and pages, submit, ending a room).
+ */
+const LONG = /\/generation-jobs|\/generate-questions|\/attempts|^\/api\/rooms\/[^/?]+$/
+const defaultTimeout = (path: string, isForm: boolean) => (LONG.test(path) ? 310_000 : isForm ? 120_000 : 30_000)
+
+type RawResponse = { status: number; text: string }
+
+/**
+ * One HTTP request over XMLHttpRequest rather than fetch: fetch in React Native has no way to set the
+ * native timeout, so iOS gives up on any request that is silent for 60 s (an AI part usually is) and
+ * reports it as a plain "Network request failed". XHR passes `timeout` down to NSURLRequest / OkHttp,
+ * and on failure its responseText holds the native error ("The request timed out.", "Unable to resolve host"…).
+ */
+export function send(url: string, method: string, headers: Record<string, string>, body: string | FormData | undefined, timeoutMs: number, signal?: AbortSignal, server = API_URL) {
+  return new Promise<RawResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(method, url)
+    xhr.timeout = timeoutMs
+    Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value))
+    xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText })
+    xhr.ontimeout = () => reject(new ApiError(0, `The server at ${server} took too long to answer. Check your internet connection, then try again.`, 'timeout'))
+    xhr.onerror = () => {
+      const detail = typeof xhr.responseText === 'string' ? xhr.responseText.trim().slice(0, 200) : ''
+      reject(new ApiError(0, `Can't reach the server at ${server}. Check your internet connection, then try again.${detail ? ` (${detail})` : ''}`, 'network'))
+    }
+    xhr.onabort = () => reject(new ApiError(0, 'The request was cancelled.', 'aborted'))
+    if (signal?.aborted) return xhr.abort()
+    signal?.addEventListener('abort', () => xhr.abort())
+    xhr.send(body ?? null)
+  })
+}
 
 export async function api<T = unknown>(path: string, options: Options = {}): Promise<T> {
   if (!API_URL) throw new ApiError(0, 'The app is not connected to a server. Set SERVER in src/config.ts.')
   const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
-  const controller = new AbortController()
-  let timedOut = false
-  const timer = setTimeout(() => { timedOut = true; controller.abort() }, options.timeoutMs ?? defaultTimeout(path, isForm))
-  options.signal?.addEventListener('abort', () => controller.abort())
-  let response: Response
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      method: options.method ?? (options.body ? 'POST' : 'GET'),
-      headers: {
-        Accept: 'application/json',
-        'x-client': 'mobile',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.body && !isForm ? { 'Content-Type': 'application/json' } : {}),
-        ...options.headers,
-      },
-      body: options.body ? (isForm ? (options.body as FormData) : JSON.stringify(options.body)) : undefined,
-      signal: controller.signal,
-    })
-  } catch {
-    clearTimeout(timer)
-    if (timedOut) throw new ApiError(0, `The server at ${API_URL} took too long to answer. Check that the phone can open it in a browser, then try again.`, 'timeout')
-    throw new ApiError(0, `Can't reach the server at ${API_URL}. Check that the phone and the server are on the same network, then try again.`, 'network')
-  }
-  const data = await response.json().catch(() => ({}))
-  clearTimeout(timer)
+  const method = options.method ?? (options.body ? 'POST' : 'GET')
+  const response = await send(
+    `${API_URL}${path}`,
+    method,
+    {
+      Accept: 'application/json',
+      'x-client': 'mobile',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.body && !isForm ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
+    options.body ? (isForm ? (options.body as FormData) : JSON.stringify(options.body)) : undefined,
+    options.timeoutMs ?? defaultTimeout(path, isForm),
+    options.signal,
+  )
+  let data: { error?: string; code?: string } = {}
+  try { data = response.text ? JSON.parse(response.text) : {} } catch {}
   if (response.status === 401 && !path.includes('/auth/')) onUnauthorized?.()
-  if (!response.ok) throw new ApiError(response.status, data.error || `Request failed (${response.status})`, data.code)
+  if (response.status < 200 || response.status >= 300) throw new ApiError(response.status, data.error || `Request failed (${response.status})`, data.code)
+  if (method === 'GET') responses.set(path, data)
   return data as T
 }
 
@@ -118,6 +152,8 @@ export type DraftQuestion = {
   outputFormat: string
   constraints: string
   samples: Sample[]
+  /** Grading-only tests (coding), never shown to students. Sent to faculty only. */
+  hiddenTests?: Sample[]
   points: number | null
   language: string
   starterCode: string

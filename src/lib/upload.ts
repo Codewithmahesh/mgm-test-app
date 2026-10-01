@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker'
+import { send } from './api'
 
 // Same unsigned Cloudinary preset the website uses for question images (mgm-test/lib/imageuploader.ts).
 const CLOUDINARY_CLOUD_NAME = 'rbpepl7c'
@@ -14,8 +15,10 @@ export async function pickAndUploadImage(): Promise<string | null> {
   // React Native's FormData takes { uri, name, type } for a local file.
   form.append('file', { uri: asset.uri, name: asset.fileName ?? 'question.jpg', type: asset.mimeType ?? 'image/jpeg' } as unknown as Blob)
   form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
-  const response = await fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: form })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error?.message || 'Upload failed')
-  return data.secure_url as string
+  // Through the app's XHR helper: a real timeout and a readable error on a slow mobile connection.
+  const response = await send(CLOUDINARY_UPLOAD_URL, 'POST', { Accept: 'application/json' }, form, 120_000, undefined, 'the image service')
+  let data: { secure_url?: string; error?: { message?: string } } = {}
+  try { data = JSON.parse(response.text) } catch {}
+  if (response.status < 200 || response.status >= 300 || !data.secure_url) throw new Error(data.error?.message || 'Upload failed. Please try again.')
+  return data.secure_url
 }

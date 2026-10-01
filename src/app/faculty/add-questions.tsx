@@ -429,7 +429,7 @@ function CsvImport({ onResult }: { onResult: (questions: DraftQuestion[], errors
         <Text mono size={12} tone="mutedForeground">question, optionA, optionB, optionC, optionD, answer</Text>
         <Text size={12} tone="mutedForeground" leading={18}>• <Text size={12} weight="medium">answer</Text> can be a letter (B), a number (2) or the option&apos;s text.</Text>
         <Text size={12} tone="mutedForeground" leading={18}>• Optional: type (mcq / tf / coding), topic, bloom (1–6 or remember … create), set (A, B…), explanation.</Text>
-        <Text size={12} tone="mutedForeground" leading={18}>• Coding rows: title, inputFormat, outputFormat, constraints, sampleInput, sampleOutput, points.</Text>
+        <Text size={12} tone="mutedForeground" leading={18}>• Coding rows: title, inputFormat, outputFormat, constraints, sampleInput, sampleOutput, points, and optionally hiddenInput, hiddenOutput for a hidden grading test.</Text>
       </Card>
     </View>
   )

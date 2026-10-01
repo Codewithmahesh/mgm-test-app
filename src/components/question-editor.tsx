@@ -12,7 +12,7 @@ export function blankQuestion(type: DraftQuestion['type'] = 'mcq'): DraftQuestio
   return {
     type, text: '', options: type === 'tf' ? ['True', 'False'] : type === 'mcq' ? ['', '', '', ''] : [], correctIndex: type === 'coding' ? null : 0,
     topic: '', bloom: null, set: '', explanation: '', title: '', inputFormat: '', outputFormat: '', constraints: '',
-    samples: type === 'coding' ? [{ input: '', output: '', explanation: '' }] : [], points: null, language: '', starterCode: '', imageUrl: '',
+    samples: type === 'coding' ? [{ input: '', output: '', explanation: '' }] : [], hiddenTests: [], points: null, language: '', starterCode: '', imageUrl: '',
   }
 }
 
@@ -43,6 +43,8 @@ export function QuestionEditor({ open, initial, onClose, onSave, title }: { open
   const set = <K extends keyof DraftQuestion>(key: K, value: DraftQuestion[K]) => setQ(current => ({ ...current, [key]: value }))
   const setType = (type: DraftQuestion['type']) => setQ(current => ({ ...blankQuestion(type), text: current.text, topic: current.topic, bloom: current.bloom, set: current.set, explanation: current.explanation, imageUrl: current.imageUrl }))
   const setSample = (index: number, key: keyof Sample, value: string) => set('samples', q.samples.map((s, i) => (i === index ? { ...s, [key]: value } : s)))
+  const hidden = q.hiddenTests ?? []
+  const setHidden = (index: number, key: 'input' | 'output', value: string) => set('hiddenTests', hidden.map((t, i) => (i === index ? { ...t, [key]: value } : t)))
 
   async function save() {
     const problem = validateQuestion(q)
@@ -76,7 +78,7 @@ export function QuestionEditor({ open, initial, onClose, onSave, title }: { open
             <Field label="Input format"><Textarea rows={2} value={q.inputFormat} onChangeText={v => set('inputFormat', v)} placeholder="The first line contains N…" /></Field>
             <Field label="Output format"><Textarea rows={2} value={q.outputFormat} onChangeText={v => set('outputFormat', v)} placeholder="Print a single integer…" /></Field>
             <Field label="Constraints"><Textarea rows={2} mono value={q.constraints} onChangeText={v => set('constraints', v)} placeholder={'1 ≤ N ≤ 10^5'} /></Field>
-            <Field label="Sample tests" right={<Text size={13} weight="medium" tone="primary" onPress={() => set('samples', [...q.samples, { input: '', output: '', explanation: '' }])}>+ Add</Text>}>
+            <Field label="Sample tests (shown to students)" right={<Text size={13} weight="medium" tone="primary" onPress={() => set('samples', [...q.samples, { input: '', output: '', explanation: '' }])}>+ Add</Text>}>
               <View style={{ gap: 10 }}>
                 {q.samples.map((sample, index) => (
                   <View key={index} style={{ borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 10, gap: 8 }}>
@@ -87,6 +89,22 @@ export function QuestionEditor({ open, initial, onClose, onSave, title }: { open
                     <Textarea rows={2} mono value={sample.input} onChangeText={v => setSample(index, 'input', v)} placeholder="Input (stdin)" />
                     <Textarea rows={2} mono value={sample.output} onChangeText={v => setSample(index, 'output', v)} placeholder="Expected output (stdout)" />
                     <Input value={sample.explanation} onChangeText={v => setSample(index, 'explanation', v)} placeholder="Explanation (optional)" />
+                  </View>
+                ))}
+              </View>
+            </Field>
+            <Field label="Hidden tests (graded, never shown)" right={hidden.length < 10 ? <Text size={13} weight="medium" tone="primary" onPress={() => set('hiddenTests', [...hidden, { input: '', output: '', explanation: '' }])}>+ Add</Text> : undefined}>
+              <View style={{ gap: 10 }}>
+                {hidden.length === 0 ? (
+                  <Text size={12} tone="mutedForeground" leading={18}>No hidden tests. Without them, code is graded only on the samples students can see, so it could just print those answers. Add edge cases and larger inputs.</Text>
+                ) : hidden.map((test, index) => (
+                  <View key={index} style={{ borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 10, gap: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text size={12} weight="medium" tone="mutedForeground">Hidden test {index + 1}</Text>
+                      <Pressable hitSlop={8} onPress={() => set('hiddenTests', hidden.filter((_, i) => i !== index))} accessibilityLabel="Remove hidden test"><Trash2 size={15} color={c.subtle} /></Pressable>
+                    </View>
+                    <Textarea rows={2} mono value={test.input} onChangeText={v => setHidden(index, 'input', v)} placeholder="Input (stdin)" />
+                    <Textarea rows={2} mono value={test.output} onChangeText={v => setHidden(index, 'output', v)} placeholder="Expected output (stdout)" />
                   </View>
                 ))}
               </View>

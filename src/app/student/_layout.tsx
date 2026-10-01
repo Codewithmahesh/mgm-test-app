@@ -52,6 +52,7 @@ export default function StudentLayout() {
       <Stack.Screen name="room/[code]" />
       <Stack.Screen name="exam/[id]" options={{ gestureEnabled: false, animation: 'fade' }} />
       <Stack.Screen name="result/[id]" />
+      <Stack.Screen name="practical/[id]" />
       <Stack.Screen name="profile" />
     </Stack>
     </ShellProvider>

@@ -52,6 +52,7 @@ export default function FacultyLayout() {
       <Stack.Screen name="attempt/[roomId]/[attemptId]" />
       <Stack.Screen name="add-questions" options={{ presentation: 'modal', gestureEnabled: false }} />
       <Stack.Screen name="generations" />
+      <Stack.Screen name="practical/[id]" />
       <Stack.Screen name="profile" />
     </Stack>
     </ShellProvider>

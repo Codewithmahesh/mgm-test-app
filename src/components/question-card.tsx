@@ -55,6 +55,7 @@ export function QuestionCard({ question, index, actions, meta, selectable }: {
               {question.outputFormat ? <Section label="Output">{question.outputFormat}</Section> : null}
               {question.constraints ? <Section label="Constraints">{question.constraints}</Section> : null}
               {question.samples.map((s, i) => <Section key={i} label={`Sample ${i + 1}`}>{`Input:\n${s.input}\nOutput:\n${s.output}`}</Section>)}
+              <Text size={12} tone="mutedForeground">{question.hiddenTests?.length ? `+ ${question.hiddenTests.length} hidden test${question.hiddenTests.length === 1 ? '' : 's'} used for grading` : 'No hidden tests: graded on the samples only'}</Text>
             </View>
           ) : (
             <>

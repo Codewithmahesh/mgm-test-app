@@ -4,13 +4,13 @@ import { useCallback, useState } from 'react'
 import { Pressable, View } from 'react-native'
 import { AppHeader } from '@/components/app-shell'
 import { Alert, Badge, Card, CardHeader, Divider, EmptyState, PageLoader, Screen, Segmented, Text } from '@/components/ui'
-import { api, errorMessage, formatDate, relativeTime, type MyAttempt } from '@/lib/api'
+import { api, cached, errorMessage, formatDate, relativeTime, type MyAttempt } from '@/lib/api'
 import { useColors } from '@/theme'
 
 /** Every exam the student has started or submitted, with results. */
 export default function MyExams() {
   const c = useColors()
-  const [attempts, setAttempts] = useState<MyAttempt[] | null>(null)
+  const [attempts, setAttempts] = useState<MyAttempt[] | null>(() => cached<{ attempts: MyAttempt[] }>('/api/student/attempts')?.attempts ?? null)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<'all' | 'published' | 'pending'>('all')
   const load = useCallback(() => api<{ attempts: MyAttempt[] }>('/api/student/attempts').then(d => { setAttempts(d.attempts); setError('') }).catch(err => setError(errorMessage(err))), [])

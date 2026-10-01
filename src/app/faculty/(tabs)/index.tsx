@@ -7,7 +7,7 @@ import { BarChart } from '@/components/bar-chart'
 import { NavyBanner } from '@/components/brand'
 import { RoomRow } from '@/components/room-row'
 import { Alert, Button, Card, CardHeader, Divider, EmptyState, IconTile, PageLoader, Progress, Screen, StatCard, Text } from '@/components/ui'
-import { api, errorMessage, relativeTime, type Room } from '@/lib/api'
+import { api, cached, errorMessage, relativeTime, type Room } from '@/lib/api'
 import { notify } from '@/lib/notify'
 import { useSession } from '@/lib/session'
 import { radius, useColors, type Tone } from '@/theme'
@@ -24,7 +24,7 @@ const greeting = () => { const hour = new Date().getHours(); return hour < 12 ? 
 export default function FacultyDashboard() {
   const { teacher } = useSession()
   const c = useColors()
-  const [data, setData] = useState<Dashboard | null>(null)
+  const [data, setData] = useState<Dashboard | null>(() => cached<Dashboard>('/api/dashboard') ?? null)
   const [error, setError] = useState('')
   const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
@@ -32,7 +32,7 @@ export default function FacultyDashboard() {
   // Live while this tab is on screen, like the website's 10-second refresh.
   useFocusEffect(useCallback(() => {
     load()
-    timer.current = setInterval(() => { if (AppState.currentState === 'active') load() }, 10_000)
+    timer.current = setInterval(() => { if (AppState.currentState === 'active') load() }, 30_000)
     return () => clearInterval(timer.current)
   }, [load]))
 

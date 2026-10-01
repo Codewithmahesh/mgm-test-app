@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, Clock3, DoorOpen, Hourglass, Sparkles, Tra
 import { useCallback, useEffect, useState } from 'react'
 import { View } from 'react-native'
 import { Alert, Badge, Button, Card, EmptyState, PageLoader, Progress, Screen, ScreenHeader, Text, useFeedback } from '@/components/ui'
-import { api, errorMessage, relativeTime } from '@/lib/api'
+import { api, cached, errorMessage, relativeTime } from '@/lib/api'
 import { useColors } from '@/theme'
 
 type Job = {
@@ -25,7 +25,7 @@ type Job = {
 export default function Generations() {
   const c = useColors()
   const { toast, confirm } = useFeedback()
-  const [jobs, setJobs] = useState<Job[] | null>(null)
+  const [jobs, setJobs] = useState<Job[] | null>(() => cached<{ jobs: Job[] }>('/api/generation-jobs')?.jobs ?? null)
   const [error, setError] = useState('')
   const [removing, setRemoving] = useState<string | null>(null)
 

@@ -7,7 +7,7 @@ import { RoomStatusBadge } from '@/components/common'
 import { QuestionCard } from '@/components/question-card'
 import { QuestionEditor } from '@/components/question-editor'
 import { Badge, Button, Card, Divider, EmptyState, IconButton, IconTile, Input, PageLoader, Screen, Segmented, Spinner, StatCard, Text, useFeedback } from '@/components/ui'
-import { api, errorMessage, relativeTime, type BankQuestion, type DraftQuestion, type RoomStatus } from '@/lib/api'
+import { api, cached, errorMessage, relativeTime, type BankQuestion, type DraftQuestion, type RoomStatus } from '@/lib/api'
 import { useColors } from '@/theme'
 
 type Group = {
@@ -18,30 +18,35 @@ type Group = {
   topics: string[]
 }
 
+/** Questions per request, and per "Show more": a few hundred cards at once make the screen slow on a phone. */
+const PAGE_SIZE = 100
+const SHOW_STEP = 30
+
 const groupTitle = (g: Group) => g.room?.title ?? (g.key === 'unassigned' ? 'Not in any exam room' : 'Deleted exam room')
 
 export default function QuestionBank() {
   const c = useColors()
   const { toast, confirm } = useFeedback()
-  const [groups, setGroups] = useState<Group[] | null>(null)
+  const [groups, setGroups] = useState<Group[] | null>(() => cached<{ groups: Group[] }>('/api/questions/groups')?.groups ?? null)
   const [questions, setQuestions] = useState<Record<string, BankQuestion[] | undefined>>({})
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [type, setType] = useState<'all' | 'mcq' | 'tf' | 'coding'>('all')
   const [editing, setEditing] = useState<{ group: string; question: BankQuestion } | null>(null)
+  const [limits, setLimits] = useState<Record<string, number>>({})
 
   const loadGroups = useCallback(() => api<{ groups: Group[] }>('/api/questions/groups').then(d => setGroups(d.groups)).catch(err => toast(errorMessage(err), 'error')), [toast])
 
-  /** All questions of one group, objective first then coding. */
+  /** All questions of one group, objective first then coding. Shown as each page arrives, not after the last one. */
   const fetchGroup = useCallback(async (key: string) => {
     const all: BankQuestion[] = []
-    for (let page = 1; page < 50; page++) {
-      const data = await api<{ questions: BankQuestion[]; total: number }>(`/api/questions?room=${key}&order=paper&limit=500&page=${page}`)
+    for (let page = 1; page < 200; page++) {
+      const data = await api<{ questions: BankQuestion[]; total: number }>(`/api/questions?room=${key}&order=paper&limit=${PAGE_SIZE}&page=${page}`)
       all.push(...data.questions)
+      const ordered = [...all.filter(q => q.type !== 'coding'), ...all.filter(q => q.type === 'coding')]
+      setQuestions(map => ({ ...map, [key]: ordered }))
       if (all.length >= data.total || !data.questions.length) break
     }
-    const ordered = [...all.filter(q => q.type !== 'coding'), ...all.filter(q => q.type === 'coding')]
-    setQuestions(map => ({ ...map, [key]: ordered }))
   }, [])
 
   // Refresh on focus (e.g. after adding questions), including any groups already open.
@@ -118,6 +123,7 @@ export default function QuestionBank() {
         const expanded = open.has(group.key)
         const list = questions[group.key]
         const shown = list?.filter(q => type === 'all' || q.type === type)
+        const limit = limits[group.key] ?? SHOW_STEP
         return (
           <Card key={group.key}>
             <Pressable onPress={() => toggle(group.key)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: pressed ? c.muted : 'transparent' })} accessibilityState={{ expanded }}>
@@ -140,7 +146,7 @@ export default function QuestionBank() {
                   <Button variant="outline" size="sm" icon={Plus} style={{ flex: 1 }} onPress={() => router.push(group.room ? `/faculty/add-questions?roomId=${group.room.id}&method=ai` : '/faculty/add-questions?method=ai')}>Add</Button>
                   <Button variant="destructive-outline" size="sm" icon={Trash2} onPress={() => removeGroup(group)} accessibilityLabel="Delete all questions" />
                 </View>
-                {!list ? <View style={{ paddingVertical: 20, alignItems: 'center' }}><Spinner /></View> : !shown?.length ? <Text size={13} tone="mutedForeground" center style={{ paddingVertical: 20 }}>No questions of this type.</Text> : shown.map((question, index) => (
+                {!list ? <View style={{ paddingVertical: 20, alignItems: 'center' }}><Spinner /></View> : !shown?.length ? <Text size={13} tone="mutedForeground" center style={{ paddingVertical: 20 }}>No questions of this type.</Text> : shown.slice(0, limit).map((question, index) => (
                   <View key={question.id}>
                     <Divider />
                     <QuestionCard question={question} index={index} meta={question.source === 'ai' ? 'AI' : question.source === 'csv' ? 'CSV' : 'Manual'} actions={<>
@@ -149,6 +155,12 @@ export default function QuestionBank() {
                     </>} />
                   </View>
                 ))}
+                {shown && shown.length > limit && (
+                  <View style={{ padding: 14, paddingTop: 4 }}>
+                    <Divider />
+                    <Button variant="outline" size="sm" style={{ marginTop: 12 }} onPress={() => setLimits(map => ({ ...map, [group.key]: limit + SHOW_STEP }))}>{`Show more (${shown.length - limit} left)`}</Button>
+                  </View>
+                )}
               </>
             )}
           </Card>

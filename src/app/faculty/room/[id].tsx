@@ -5,7 +5,7 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { CopyCode, RoomStatusBadge } from '@/components/common'
 import { LeaderboardTab, OverviewTab, ParticipantsTab, QuestionsTab, SettingsTab, WaitingRoomCard, useWaitingRoom } from '@/components/room-tabs'
 import { Alert, Button, Field, NumberInput, PageLoader, Screen, ScreenHeader, Sheet, Text, useFeedback } from '@/components/ui'
-import { api, errorMessage, formatDate, type BankQuestion, type Room } from '@/lib/api'
+import { api, cached, errorMessage, formatDate, type BankQuestion, type Room } from '@/lib/api'
 import { cancelReminder, remindAt } from '@/lib/notify'
 import { radius, useColors } from '@/theme'
 
@@ -17,8 +17,8 @@ export default function RoomScreen() {
   const id = params.id
   const c = useColors()
   const { toast, confirm } = useFeedback()
-  const [room, setRoom] = useState<Room | null>(null)
-  const [questions, setQuestions] = useState<BankQuestion[]>([])
+  const [room, setRoom] = useState<Room | null>(() => cached<{ room: Room }>(`/api/rooms/${id}`)?.room ?? null)
+  const [questions, setQuestions] = useState<BankQuestion[]>(() => cached<{ questions: BankQuestion[] }>(`/api/rooms/${id}`)?.questions ?? [])
   const [error, setError] = useState('')
   const [tab, setTab] = useState<Tab>(TABS.includes(params.tab as Tab) ? (params.tab as Tab) : 'overview')
   const [extendOpen, setExtendOpen] = useState(false)
