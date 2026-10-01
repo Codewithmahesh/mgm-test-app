@@ -1,18 +1,22 @@
 {
   "expo": {
-    "name": "mgm-exam-app",
+    "name": "MGM Exam",
     "slug": "mgm-exam-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mgmexamapp",
+    "scheme": "mgmexam",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#faf9f5",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "in.ac.mgmcen.exam",
+      "supportsTablet": true
     },
     "android": {
+      "package": "in.ac.mgmcen.exam",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#181715",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -28,15 +32,39 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#181715",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 120
+        }
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MGM Exam to use your photos so you can attach diagrams to questions.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#c6613f"
         }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
+      "typedRoutes": false,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ecec0cc7-7211-45d5-acce-2ccb6354b279"
+      }
+    },
+    "owner": "codewithrushi"
   }
 }

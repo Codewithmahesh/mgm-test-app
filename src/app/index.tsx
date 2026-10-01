@@ -1,98 +1,74 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+import { ArrowRight, CheckCircle2, GraduationCap, Presentation, type LucideIcon } from 'lucide-react-native'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { COLLEGE_CITY, COLLEGE_NAME, Emblem, GridBackground, MadeBy, PORTAL_NAME } from '@/components/brand'
+import { Eyebrow, Text } from '@/components/ui'
+import { radius, useColors } from '@/theme'
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function Welcome() {
+  const c = useColors()
+  const insets = useSafeAreaInsets()
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
+    <View style={{ flex: 1, backgroundColor: c.navy }}>
+      <StatusBar style="light" />
+      <GridBackground />
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
+        <View style={[styles.hero, { paddingTop: insets.top + 20 }]}>
+          <Text mono size={11} uppercase tracking={2.2} color="rgba(255,255,255,0.5)">{PORTAL_NAME}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 32 }}>
+            <Emblem size={76} />
+            <View style={{ flex: 1 }}>
+              <Text size={21} weight="semibold" color="#ffffff" leading={26}>{COLLEGE_NAME}</Text>
+              <Text size={14} color="rgba(255,255,255,0.55)" style={{ marginTop: 2 }}>{COLLEGE_CITY}</Text>
+            </View>
+          </View>
+          <Eyebrow tone="brand" style={{ marginTop: 32 }}>{'// online examination'}</Eyebrow>
+          <Text serif size={30} leading={36} tracking={-0.5} color="#ffffff" style={{ marginTop: 10 }}>Fair, timed exams, right from your phone.</Text>
+          <View style={{ gap: 10, marginTop: 20 }}>
+            {['Join exams with the room code from your faculty', 'Answers save automatically as you go', 'Faculty: create exams and questions with AI'].map(point => (
+              <View key={point} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                <CheckCircle2 size={17} color={c.brand} style={{ marginTop: 2 }} />
+                <Text size={14} color="rgba(255,255,255,0.75)" style={{ flex: 1 }}>{point}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={[styles.panel, { backgroundColor: c.background, paddingBottom: insets.bottom + 20 }]}>
+          <Text serif size={24} weight="medium">Sign in</Text>
+          <Text size={14} tone="mutedForeground" style={{ marginTop: 4 }}>Choose how you use the portal.</Text>
+          <View style={{ gap: 12, marginTop: 20 }}>
+            <RoleCard icon={GraduationCap} title="I'm a student" text="Sign in with your college email to take exams and see results." onPress={() => router.push('/student-login')} />
+            <RoleCard icon={Presentation} title="I'm faculty" text="Create exam rooms, add questions and watch results live." onPress={() => router.push('/faculty-login')} />
+          </View>
+          <View style={{ marginTop: 'auto', paddingTop: 28 }}><MadeBy /></View>
+        </View>
+      </ScrollView>
+    </View>
+  )
 }
 
-export default function HomeScreen() {
+function RoleCard({ icon: Icon, title, text, onPress }: { icon: LucideIcon; title: string; text: string; onPress: () => void }) {
+  const c = useColors()
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
+    <Pressable onPress={onPress} accessibilityRole="button"
+      style={({ pressed }) => [styles.card, { backgroundColor: pressed ? c.primarySoft : c.card, borderColor: pressed ? c.primaryBorder : c.border }]}>
+      <View style={{ width: 44, height: 44, borderRadius: radius.lg, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={22} color={c.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text size={16} weight="semibold">{title}</Text>
+        <Text size={13} tone="mutedForeground" leading={18} style={{ marginTop: 2 }}>{text}</Text>
+      </View>
+      <ArrowRight size={18} color={c.subtle} />
+    </Pressable>
+  )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-});
+  hero: { paddingHorizontal: 24, paddingBottom: 44 },
+  panel: { flexGrow: 1, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, paddingHorizontal: 20, paddingTop: 26 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: radius.xl, padding: 16 },
+})
