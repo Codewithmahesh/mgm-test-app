@@ -15,6 +15,7 @@ import { useEffect } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { FeedbackProvider } from '@/components/ui'
+import { takeLanding } from '@/lib/landing'
 import { PreferencesProvider } from '@/lib/preferences'
 import { SessionProvider, useSession } from '@/lib/session'
 import { useColors, useIsDark } from '@/theme'
@@ -58,7 +59,7 @@ function Navigator() {
   useEffect(() => {
     if (!ready) return
     if (role === 'faculty' && area !== 'faculty') router.replace('/faculty')
-    else if (role === 'student' && area !== 'student') router.replace('/student')
+    else if (role === 'student' && area !== 'student') router.replace((takeLanding() ?? '/student') as never)
     else if (!role && (area === 'faculty' || area === 'student')) router.replace('/')
   }, [ready, role, area])
 

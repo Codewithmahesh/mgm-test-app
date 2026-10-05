@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router'
-import { ClipboardList, KeyRound, LayoutDashboard, LogOut, UserRound, WifiOff } from 'lucide-react-native'
+import { ClipboardList, KeyRound, LayoutDashboard, LogOut, Route, UserRound, WifiOff } from 'lucide-react-native'
 import { ShellProvider, type NavItem } from '@/components/app-shell'
 import { useState } from 'react'
 import { View } from 'react-native'
@@ -12,6 +12,7 @@ import { useColors } from '@/theme'
 const NAV: NavItem[] = [
   { href: '/student', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/student/results', label: 'My exams', icon: ClipboardList },
+  { href: '/student/jems', label: 'JEMS: skills & roadmap', icon: Route },
   { href: '/student/profile', label: 'Profile', icon: UserRound },
 ]
 const SHELL = { role: 'Student' as const, nav: NAV, action: { href: '/student', label: 'Join an exam', icon: KeyRound }, profileHref: '/student/profile' }
@@ -54,6 +55,7 @@ export default function StudentLayout() {
       <Stack.Screen name="result/[id]" />
       <Stack.Screen name="practical/[id]" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="jems" />
     </Stack>
     </ShellProvider>
   )
