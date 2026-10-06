@@ -9,7 +9,7 @@ import { useColors } from '@/theme'
 import { Button, Card, IconTile, Progress, Text, useFeedback } from './ui'
 
 /** What the AI was asked for, so the room's papers can be set up to match. */
-export type GenerationPlan = { sets: string[]; mcqPerSet: number; codingPerSet: number; bloomPlan: { level: string; count: number; marks: number }[] | null; applyToRoom: boolean }
+export type GenerationPlan = { sets: string[]; mcqPerSet: number; tfPerSet?: number; codingPerSet: number; bloomPlan: { level: string; count: number; marks: number }[] | null; applyToRoom: boolean }
 
 type JobSummary = {
   id: string

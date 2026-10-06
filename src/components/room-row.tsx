@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { ChevronRight, Clock3, ShieldAlert } from 'lucide-react-native'
 import { Pressable, View } from 'react-native'
-import { relativeTime, type Room } from '@/lib/api'
+import { paperSummary, relativeTime, type Room } from '@/lib/api'
 import { useColors } from '@/theme'
 import { RoomStatusBadge } from './common'
 import { Progress, Text } from './ui'
@@ -17,7 +17,7 @@ export function RoomRow({ room }: { room: Room }) {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 3 }}>
             <Text mono size={12} weight="semibold" tone="mutedForeground" tracking={1}>{room.code}</Text>
             <Text size={12} tone="subtle">·</Text>
-            <Text size={12} tone="mutedForeground">{room.questionsPerStudent} MCQ{room.codingQuestions ? ` + ${room.codingQuestions} coding` : ''}</Text>
+            <Text size={12} tone="mutedForeground">{paperSummary(room)}</Text>
             <Text size={12} tone="subtle">·</Text>
             <Clock3 size={11} color={c.mutedForeground} />
             <Text size={12} tone="mutedForeground">{room.durationMinutes} min</Text>

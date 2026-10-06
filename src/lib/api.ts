@@ -34,10 +34,11 @@ export function setUnauthorizedHandler(handler: (() => void) | null) { onUnautho
 type Options = { method?: string; body?: unknown; headers?: Record<string, string>; signal?: AbortSignal; timeoutMs?: number }
 
 /**
- * Requests that can run for minutes on the server (maxDuration 300 s): AI generation, and anything that
- * may submit attempts, since grading runs the students' code (attempt lists and pages, submit, ending a room).
+ * Requests that can run for minutes on the server (maxDuration 300 s): AI generation, anything that
+ * may submit attempts, since grading runs the students' code (attempt lists and pages, submit, ending a room),
+ * practical reports, which run each experiment's code on its sample inputs, and reading a practical list.
  */
-const LONG = /\/generation-jobs|\/generate-questions|\/attempts|^\/api\/rooms\/[^/?]+$/
+const LONG = /\/generation-jobs|\/generate-questions|\/attempts|\/report(?:\?|$)|\/practicals\/[^/]+\/import$|^\/api\/rooms\/[^/?]+$/
 const defaultTimeout = (path: string, isForm: boolean) => (LONG.test(path) ? 310_000 : isForm ? 120_000 : 30_000)
 
 type RawResponse = { status: number; text: string }
@@ -106,6 +107,10 @@ export type Room = {
   instructions: string
   code: string
   questionsPerStudent: number
+  /** True/False per student. */
+  tfQuestions: number
+  /** False on rooms made before True/False had its own count: there True/False questions count as MCQs. */
+  tfSeparate: boolean
   codingQuestions: number
   marksPerQuestion: number
   negativeMarks: number
@@ -124,6 +129,7 @@ export type Room = {
   updatedAt: string
   poolSize: number
   mcqPoolSize: number
+  tfPoolSize: number
   codingPoolSize: number
   joined: number
   submitted: number
@@ -216,6 +222,21 @@ export const DEPARTMENT_OPTIONS = [
   'Electrical Engineering',
   'Basic Sciences & Humanities',
 ]
+
+/** What each student's paper has, e.g. "20 MCQ + 5 True/False + 2 coding". */
+export function paperSummary(room: { questionsPerStudent: number; tfQuestions?: number; codingQuestions?: number }) {
+  return [
+    `${room.questionsPerStudent} MCQ`,
+    room.tfQuestions ? `${room.tfQuestions} True/False` : '',
+    room.codingQuestions ? `${room.codingQuestions} coding` : '',
+  ].filter(Boolean).join(' + ')
+}
+
+/** How a question counts on a room's papers: on older rooms True/False questions count as MCQs. */
+export function paperKind(room: { tfSeparate?: boolean }, type: string): 'mcq' | 'tf' | 'coding' {
+  if (type === 'coding') return 'coding'
+  return type === 'tf' && room.tfSeparate ? 'tf' : 'mcq'
+}
 
 export const LANGUAGE_LABELS: Record<string, string> = { cpp: 'C++ 17', c: 'C', java: 'Java 17', python: 'Python 3', javascript: 'JavaScript (Node)' }
 export const languageLabel = (value: string) => LANGUAGE_LABELS[value] ?? (value || 'Code')

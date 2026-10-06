@@ -1,3 +1,5 @@
+// First, before any library that might need it loads.
+import '@/lib/polyfills'
 // Per-weight imports, so only the eight font files the app uses are bundled.
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular'
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium'

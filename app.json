@@ -15,6 +15,7 @@
     },
     "android": {
       "package": "in.ac.mgmcen.exam",
+      "blockedPermissions": ["android.permission.READ_MEDIA_IMAGES"],
       "adaptiveIcon": {
         "backgroundColor": "#181715",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -53,7 +54,9 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#c6613f"
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": false,

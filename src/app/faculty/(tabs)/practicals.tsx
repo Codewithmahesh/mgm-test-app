@@ -1,28 +1,31 @@
 import { router, useFocusEffect } from 'expo-router'
-import { ChevronRight, FlaskConical } from 'lucide-react-native'
+import { ChevronRight, FlaskConical, Plus } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { Pressable, View } from 'react-native'
 import { AppHeader } from '@/components/app-shell'
-import { Alert, Badge, Card, Divider, EmptyState, PageLoader, Progress, Screen, Text } from '@/components/ui'
+import { NewPracticalSheet } from '@/components/practical-form'
+import { Alert, Badge, Button, Card, Divider, EmptyState, PageLoader, Progress, Screen, Text } from '@/components/ui'
 import { api, cached, errorMessage } from '@/lib/api'
 import type { PracticalSubject } from '@/lib/practicals'
 import { useColors } from '@/theme'
 
-/** The faculty member's practicals with how far their students have got. Created and edited on the website. */
+/** The faculty member's practicals with how far their students have got, and creating a new one. */
 export default function PracticalsTab() {
   const c = useColors()
   const [subjects, setSubjects] = useState<PracticalSubject[] | null>(() => cached<{ subjects: PracticalSubject[] }>('/api/practicals')?.subjects ?? null)
   const [error, setError] = useState('')
+  const [creating, setCreating] = useState(false)
   const load = useCallback(() => api<{ subjects: PracticalSubject[] }>('/api/practicals').then(d => { setSubjects(d.subjects); setError('') }).catch(err => setError(errorMessage(err))), [])
   useFocusEffect(useCallback(() => { load() }, [load]))
 
   return (
     <Screen edges={[]} header={<AppHeader title="Practicals" subtitle="Students' progress in each lab subject" />} onRefresh={load}>
       {error ? <Alert>{error}</Alert> : null}
+      <Button icon={Plus} onPress={() => setCreating(true)}>New practical</Button>
       {!subjects ? <PageLoader /> : (
         <Card>
           {subjects.length === 0 ? (
-            <EmptyState icon={FlaskConical} title="No practicals yet" description="Create practicals and their experiments on the website. Progress shows up here." />
+            <EmptyState icon={FlaskConical} title="No practicals yet" description="Create one for your lab subject, then add its experiments with AI from a topic or a photo of your practical list." />
           ) : subjects.map((subject, i) => (
             <View key={subject.id}>
               {i > 0 && <Divider />}
@@ -44,6 +47,11 @@ export default function PracticalsTab() {
             </View>
           ))}
         </Card>
+      )}
+      {/* Straight to the new practical, where its experiments are added. */}
+      {creating && (
+        <NewPracticalSheet open onClose={() => setCreating(false)}
+          onCreated={subject => { setCreating(false); load(); router.push(`/faculty/practical/${subject.id}`) }} />
       )}
     </Screen>
   )

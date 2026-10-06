@@ -14,6 +14,8 @@ export type RoomFormValues = {
   instructions: string
   durationMinutes: string
   questionsPerStudent: string
+  /** Empty on older rooms that still count True/False questions as MCQs. */
+  tfQuestions: string
   codingQuestions: string
   marksPerQuestion: string
   negativeMarks: string
@@ -40,13 +42,13 @@ const DEFAULT_INSTRUCTIONS = [
 ].join('\n')
 
 export function emptyRoomValues(): RoomFormValues {
-  return { title: '', description: '', instructions: DEFAULT_INSTRUCTIONS, durationMinutes: '60', questionsPerStudent: '20', codingQuestions: '0', marksPerQuestion: '1', negativeMarks: '0', codingMarks: '10', startsAt: null, autoOpen: true, showResults: 'after_end', allowedClassrooms: [], requireFullscreen: true, blockCopyPaste: true, maxViolations: '0', requireApproval: true, paperMode: 'random', setCount: '3', bloomMode: 'auto', bloomPlan: emptyPlanDraft() }
+  return { title: '', description: '', instructions: DEFAULT_INSTRUCTIONS, durationMinutes: '60', questionsPerStudent: '20', tfQuestions: '0', codingQuestions: '0', marksPerQuestion: '1', negativeMarks: '0', codingMarks: '10', startsAt: null, autoOpen: true, showResults: 'after_end', allowedClassrooms: [], requireFullscreen: true, blockCopyPaste: true, maxViolations: '0', requireApproval: true, paperMode: 'random', setCount: '3', bloomMode: 'auto', bloomPlan: emptyPlanDraft() }
 }
 
 export function roomToValues(room: Room): RoomFormValues {
   return {
     title: room.title, description: room.description, instructions: room.instructions,
-    durationMinutes: String(room.durationMinutes), questionsPerStudent: String(room.questionsPerStudent), codingQuestions: String(room.codingQuestions),
+    durationMinutes: String(room.durationMinutes), questionsPerStudent: String(room.questionsPerStudent), tfQuestions: room.tfSeparate ? String(room.tfQuestions) : '', codingQuestions: String(room.codingQuestions),
     marksPerQuestion: String(room.marksPerQuestion), negativeMarks: String(room.negativeMarks), codingMarks: String(room.codingMarks),
     startsAt: room.startsAt ? new Date(room.startsAt) : null, autoOpen: room.autoOpen, showResults: room.showResults, allowedClassrooms: room.allowedClassrooms,
     requireFullscreen: room.requireFullscreen, blockCopyPaste: room.blockCopyPaste, maxViolations: String(room.maxViolations), requireApproval: room.requireApproval,
@@ -57,9 +59,11 @@ export function roomToValues(room: Room): RoomFormValues {
 
 /** Same body the website sends to POST /api/rooms and PATCH /api/rooms/:id. */
 export function valuesToPayload(values: RoomFormValues) {
-  const { bloomMode, bloomPlan, ...rest } = values
+  const { bloomMode, bloomPlan, tfQuestions, ...rest } = values
   return {
     ...rest,
+    // Left empty on an older room: it keeps counting True/False questions as MCQs.
+    ...(tfQuestions.trim() ? { tfQuestions: Number(tfQuestions) || 0 } : {}),
     durationMinutes: Number(values.durationMinutes), questionsPerStudent: Number(values.questionsPerStudent), codingQuestions: Number(values.codingQuestions),
     marksPerQuestion: Number(values.marksPerQuestion), negativeMarks: Number(values.negativeMarks), codingMarks: Number(values.codingMarks),
     maxViolations: Number(values.maxViolations) || 0,
@@ -71,7 +75,7 @@ export function valuesToPayload(values: RoomFormValues) {
   }
 }
 
-export function RoomForm({ initial, submitLabel, onSubmit, pool }: { initial: RoomFormValues; submitLabel: string; onSubmit: (values: RoomFormValues) => Promise<void>; pool?: { mcq: number; coding: number } }) {
+export function RoomForm({ initial, submitLabel, onSubmit, pool }: { initial: RoomFormValues; submitLabel: string; onSubmit: (values: RoomFormValues) => Promise<void>; pool?: { mcq: number; tf?: number; coding: number } }) {
   const c = useColors()
   const { confirm } = useFeedback()
   const [values, setValues] = useState(initial)
@@ -86,9 +90,10 @@ export function RoomForm({ initial, submitLabel, onSubmit, pool }: { initial: Ro
   const text = (key: keyof RoomFormValues) => (value: string) => set(key, value as never)
   const usePlan = values.bloomMode === 'plan'
   const mcq = Number(values.questionsPerStudent) || 0
+  const tf = Number(values.tfQuestions) || 0
   const coding = Number(values.codingQuestions) || 0
   const plan = usePlan ? draftToPlan(values.bloomPlan) : []
-  const marks = paperMarks({ questionsPerStudent: mcq, marksPerQuestion: Number(values.marksPerQuestion) || 0, codingQuestions: coding, codingMarks: Number(values.codingMarks) || 0, bloomPlan: plan })
+  const marks = paperMarks({ questionsPerStudent: mcq, tfQuestions: tf, marksPerQuestion: Number(values.marksPerQuestion) || 0, codingQuestions: coding, codingMarks: Number(values.codingMarks) || 0, bloomPlan: plan })
   const sets = values.paperMode === 'sets' ? Number(values.setCount) || 0 : 0
   const planOver = usePlan && draftCount(values.bloomPlan) > mcq
   const startChanged = values.startsAt?.getTime() !== initial.startsAt?.getTime()
@@ -134,7 +139,11 @@ export function RoomForm({ initial, submitLabel, onSubmit, pool }: { initial: Ro
             <Field label="MCQs per student" required style={{ flex: 1 }} hint={pool ? `${pool.mcq} in pool` : undefined}><NumberInput keyboardType="number-pad" value={values.questionsPerStudent} onChangeText={text('questionsPerStudent')} /></Field>
           </Pair>
           <Pair>
-            <Field label="Marks per MCQ" style={{ flex: 1 }} hint={usePlan ? 'For questions outside the Bloom plan.' : undefined}><NumberInput value={values.marksPerQuestion} onChangeText={text('marksPerQuestion')} /></Field>
+            <Field label="True / False per student" style={{ flex: 1 }} hint={values.tfQuestions.trim() === '' ? 'Empty: counted with MCQs, as before.' : pool ? `${pool.tf ?? 0} in pool` : undefined}><NumberInput keyboardType="number-pad" value={values.tfQuestions} placeholder="With MCQs" onChangeText={text('tfQuestions')} /></Field>
+            <View style={{ flex: 1 }} />
+          </Pair>
+          <Pair>
+            <Field label="Marks per MCQ / T-F" style={{ flex: 1 }} hint={usePlan ? 'For questions outside the Bloom plan.' : undefined}><NumberInput value={values.marksPerQuestion} onChangeText={text('marksPerQuestion')} /></Field>
             <Field label="Negative per wrong" style={{ flex: 1 }} hint="0 = no negative marking."><NumberInput value={values.negativeMarks} onChangeText={text('negativeMarks')} /></Field>
           </Pair>
           <Pair>

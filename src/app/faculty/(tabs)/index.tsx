@@ -53,7 +53,7 @@ export default function FacultyDashboard() {
     const rooms = data.rooms
     const live = rooms.filter(r => r.status === 'open')
     const flagged = rooms.reduce((sum, r) => sum + (r.flagged ?? 0), 0)
-    const notReady = rooms.filter(r => r.status !== 'closed' && (r.mcqPoolSize < r.questionsPerStudent || r.codingPoolSize < r.codingQuestions || r.poolSize === 0))
+    const notReady = rooms.filter(r => r.status !== 'closed' && (r.mcqPoolSize < r.questionsPerStudent || r.tfPoolSize < r.tfQuestions || r.codingPoolSize < r.codingQuestions || r.poolSize === 0))
     const drafts = rooms.filter(r => r.status === 'draft')
     const chart = rooms.filter(r => r.averagePercent != null && r.submitted > 0).slice(0, 10).reverse().map(r => ({ label: r.title, value: r.averagePercent ?? 0, detail: `${r.submitted} submitted` }))
     const overallAvg = chart.length ? Math.round(chart.reduce((s, d) => s + d.value, 0) / chart.length) : null
@@ -72,7 +72,7 @@ export default function FacultyDashboard() {
     waitingTotal > 0 && { key: 'waiting', icon: Users, tone: 'red', title: `${waitingTotal} student${waitingTotal === 1 ? '' : 's'} waiting to join`, text: waitingRooms.length === 1 ? `In ${waitingRooms[0].title}. Admit them from the waiting room.` : `Across ${waitingRooms.length} rooms. Admit them from the waiting room.`, href: `/faculty/room/${waitingRooms[0]?.id}?tab=participants` },
     stats.pendingReview > 0 && { key: 'grading', icon: ClipboardCheck, tone: 'violet', title: `${stats.pendingReview} paper${stats.pendingReview === 1 ? '' : 's'} to grade`, text: 'Coding answers are waiting for marks.', href: `/faculty/room/${rooms.find(r => r.pendingReview > 0)?.id}?tab=leaderboard` },
     derived.flagged > 0 && { key: 'flagged', icon: ShieldAlert, tone: 'red', title: `${derived.flagged} student${derived.flagged === 1 ? '' : 's'} flagged`, text: 'Possible cheating: tab switches, pasting, second device…', href: `/faculty/room/${rooms.find(r => r.flagged > 0)?.id}?tab=participants` },
-    ...derived.notReady.slice(0, 3).map(r => ({ key: `not-ready-${r.id}`, icon: AlertTriangle, tone: 'amber', title: `${r.title} isn't ready`, text: `Pool has ${r.mcqPoolSize}/${r.questionsPerStudent} MCQs${r.codingQuestions ? `, ${r.codingPoolSize}/${r.codingQuestions} coding` : ''}.`, href: `/faculty/room/${r.id}?tab=questions` })),
+    ...derived.notReady.slice(0, 3).map(r => ({ key: `not-ready-${r.id}`, icon: AlertTriangle, tone: 'amber', title: `${r.title} isn't ready`, text: `Pool has ${r.mcqPoolSize}/${r.questionsPerStudent} MCQs${r.tfQuestions ? `, ${r.tfPoolSize}/${r.tfQuestions} True/False` : ''}${r.codingQuestions ? `, ${r.codingPoolSize}/${r.codingQuestions} coding` : ''}.`, href: `/faculty/room/${r.id}?tab=questions` })),
     derived.drafts.length > 0 && { key: 'drafts', icon: DoorOpen, tone: 'blue', title: `${derived.drafts.length} draft room${derived.drafts.length === 1 ? '' : 's'}`, text: 'Open a room when you are ready for students to join.', href: '/faculty/exams' },
   ].filter(Boolean) as { key: string; icon: LucideIcon; tone: Tone; title: string; text: string; href: string }[]
 

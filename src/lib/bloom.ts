@@ -39,11 +39,12 @@ export const planCount = (plan: BloomPlan | null | undefined) => (plan ?? []).re
  * Marks for one paper: planned questions at their level's marks, any questions not covered by the
  * plan at the default marks per MCQ, plus coding problems.
  */
-export function paperMarks(room: { questionsPerStudent: number; marksPerQuestion: number; codingQuestions?: number | null; codingMarks?: number | null; bloomPlan?: BloomPlan | null }) {
+export function paperMarks(room: { questionsPerStudent: number; tfQuestions?: number | null; marksPerQuestion: number; codingQuestions?: number | null; codingMarks?: number | null; bloomPlan?: BloomPlan | null }) {
   const plan = room.bloomPlan ?? []
   const planned = plan.reduce((sum, row) => sum + row.count * row.marks, 0)
   const rest = Math.max(0, room.questionsPerStudent - planCount(plan))
-  const mcq = planned + rest * room.marksPerQuestion
+  // The objective part: MCQs and True/False.
+  const mcq = planned + (rest + (room.tfQuestions ?? 0)) * room.marksPerQuestion
   return { mcq: round(mcq), total: round(mcq + (room.codingQuestions ?? 0) * (room.codingMarks ?? 10)) }
 }
 

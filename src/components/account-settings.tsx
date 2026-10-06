@@ -1,12 +1,14 @@
-import { Bell, KeyRound, LogOut, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react-native'
+import * as WebBrowser from 'expo-web-browser'
+import { Bell, FileText, KeyRound, LogOut, Monitor, Moon, Sun, Trash2, type LucideIcon } from 'lucide-react-native'
 import { useState } from 'react'
 import { Linking, Pressable, Switch, View } from 'react-native'
+import { API_URL, api, errorMessage } from '@/lib/api'
 import { notificationsSupported, notify } from '@/lib/notify'
 import { usePreferences, type ThemeChoice } from '@/lib/preferences'
 import { useSession } from '@/lib/session'
 import { radius, useColors } from '@/theme'
 import { OtpFlow } from './otp-flow'
-import { Button, Card, CardHeader, IconTile, Sheet, Text, useFeedback } from './ui'
+import { Alert, Button, Card, CardHeader, Field, IconTile, Input, PasswordInput, Sheet, Text, useFeedback } from './ui'
 
 /** Security, notifications and appearance, shared by the student and faculty profiles. */
 export function AccountSettings({ email, account }: { email: string; account: 'student' | 'teacher' }) {
@@ -15,6 +17,7 @@ export function AccountSettings({ email, account }: { email: string; account: 's
   const { signOut } = useSession()
   const { theme, setTheme, notifications, setNotifications, permission } = usePreferences()
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   async function toggleNotifications(on: boolean) {
     const status = await setNotifications(on)
@@ -65,12 +68,87 @@ export function AccountSettings({ email, account }: { email: string; account: 's
         </View>
       </Card>
 
+      <Card>
+        <CardHeader flush title="About" />
+        <Row icon={FileText} tone="blue" title="Privacy policy" text="What we collect, why, and how to delete it" onPress={() => void WebBrowser.openBrowserAsync(`${API_URL}/privacy-policy`)} />
+      </Card>
+
       <Button variant="destructive-outline" icon={LogOut} full onPress={signOut}>Sign out</Button>
+
+      <Card style={{ borderColor: c.dangerBorder }}>
+        <CardHeader flush title="Delete account" description="Permanently delete your account and everything in it. This can't be undone." />
+        <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 12 }}>
+          {WHAT_GOES[account].map(item => (
+            <View key={item} style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: c.danger, marginTop: 8 }} />
+              <Text size={13} tone="mutedForeground" leading={19} style={{ flex: 1 }}>{item}</Text>
+            </View>
+          ))}
+          <Button variant="destructive-outline" icon={Trash2} onPress={() => setDeleteOpen(true)}>Delete my account</Button>
+        </View>
+      </Card>
+
+      {deleteOpen && <DeleteAccountSheet account={account} onClose={() => setDeleteOpen(false)} />}
 
       <Sheet open={passwordOpen} onClose={() => setPasswordOpen(false)} title="Change password" description="We'll send a verification code to your email.">
         <OtpFlow purpose="reset" account={account} email={email} onDone={() => { setPasswordOpen(false); toast('Password changed.') }} />
       </Sheet>
     </>
+  )
+}
+
+const CONFIRM_WORD = 'DELETE'
+
+const WHAT_GOES = {
+  teacher: [
+    'Your exam rooms, with every student attempt, answer and result in them',
+    'Your question bank and AI generations',
+    'Your practicals, their experiments and the students\u2019 submissions',
+    'Your profile and sign-in',
+  ],
+  student: [
+    'Your exam attempts, answers and results',
+    'Your practical submissions and AI practice problems',
+    'Your profile and sign-in',
+  ],
+}
+
+/**
+ * Confirms with the password and the word DELETE, deletes the account on the server (DELETE /api/auth/me or
+ * /api/student/me, see the website's lib/account-deletion.ts) and signs out. Mounted only while open, so it
+ * starts empty each time.
+ */
+function DeleteAccountSheet({ account, onClose }: { account: 'student' | 'teacher'; onClose: () => void }) {
+  const { toast } = useFeedback()
+  const { signOut } = useSession()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
+  const ready = password.length > 0 && confirm.trim().toUpperCase() === CONFIRM_WORD
+
+  async function remove() {
+    setDeleting(true)
+    setError('')
+    try {
+      await api(account === 'teacher' ? '/api/auth/me' : '/api/student/me', { method: 'DELETE', body: { password, confirm } })
+      toast('Your account and everything in it have been deleted.')
+      await signOut()
+    } catch (err) { setError(errorMessage(err)); setDeleting(false) }
+  }
+
+  return (
+    <Sheet open onClose={onClose} dismissible={!deleting} title="Delete your account?" description="Everything is deleted for good, right away. We'll email you once it's done."
+      footer={<Button variant="destructive" full icon={Trash2} loading={deleting} disabled={!ready} onPress={remove}>{deleting ? 'Deleting…' : 'Delete permanently'}</Button>}>
+      <View style={{ gap: 14 }}>
+        {error ? <Alert>{error}</Alert> : null}
+        {account === 'teacher' && <Alert tone="amber">Your students lose their attempts and results in your exams, and their work in your practicals.</Alert>}
+        <Field label="Your password"><PasswordInput value={password} onChangeText={setPassword} autoComplete="current-password" /></Field>
+        <Field label={`Type ${CONFIRM_WORD} to confirm`}>
+          <Input value={confirm} onChangeText={setConfirm} autoCapitalize="characters" autoCorrect={false} mono />
+        </Field>
+      </View>
+    </Sheet>
   )
 }
 

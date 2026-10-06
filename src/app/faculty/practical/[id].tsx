@@ -1,10 +1,12 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
-import { Check, ChevronRight, FlaskConical, Lock, Search, Sparkles, Users } from 'lucide-react-native'
+import { Check, ChevronRight, FileDown, FlaskConical, Lock, Search, Sparkles, Users } from 'lucide-react-native'
+import { AddWithAiSheet, PracticalJobsBanner } from '@/components/practical-ai'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
-import { Alert, Badge, Card, Divider, EmptyState, Input, PageLoader, Progress, Screen, ScreenHeader, Segmented, Sheet, StatCard, Text } from '@/components/ui'
+import { Alert, Badge, Button, Card, Divider, EmptyState, IconButton, Input, PageLoader, Progress, Screen, ScreenHeader, Segmented, Sheet, Spinner, Text, useFeedback } from '@/components/ui'
 import { api, cached, errorMessage, languageLabel, relativeTime } from '@/lib/api'
 import type { CellStatus, PracticalSubject, Progress as ProgressData, StudentSubmission } from '@/lib/practicals'
+import { useReportExport } from '@/lib/use-report-export'
 import { radius, useColors } from '@/theme'
 
 type Tab = 'students' | 'experiments'
@@ -20,6 +22,10 @@ export default function PracticalScreen() {
   const [tab, setTab] = useState<Tab>('students')
   const [query, setQuery] = useState('')
   const [student, setStudent] = useState<StudentRow | null>(null)
+  const [adding, setAdding] = useState(false)
+  // Bumped when a background job starts, so its banner shows right away.
+  const [jobsKey, setJobsKey] = useState(0)
+  const { toast } = useFeedback()
 
   const load = useCallback(() => Promise.all([
     api<{ subject: PracticalSubject }>(`/api/practicals/${id}`).then(d => setSubject(d.subject)),
@@ -36,11 +42,16 @@ export default function PracticalScreen() {
   return (
     <Screen header={header} onRefresh={load}>
       {error ? <Alert>{error}</Alert> : null}
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <StatCard label="Experiments" value={total} icon={FlaskConical} tone="violet" style={{ flex: 1 }} />
-        <StatCard label="Students" value={progress.students.length} icon={Users} tone="blue" style={{ flex: 1 }} />
-        <StatCard label="Solved" value={subject.completionPercent == null ? '—' : `${subject.completionPercent}%`} icon={Check} tone="green" style={{ flex: 1 }} />
-      </View>
+      {/* One compact card: three full stat cards don't fit side by side on a phone. */}
+      <Card style={{ flexDirection: 'row' }}>
+        <MiniStat label="Experiments" value={total} icon={FlaskConical} color={c.violet} />
+        <View style={{ width: 1, backgroundColor: c.border, marginVertical: 12 }} />
+        <MiniStat label="Students" value={progress.students.length} icon={Users} color={c.primary} />
+        <View style={{ width: 1, backgroundColor: c.border, marginVertical: 12 }} />
+        <MiniStat label="Solved" value={subject.completionPercent == null ? '—' : `${subject.completionPercent}%`} icon={Check} color={c.success} />
+      </Card>
+      <Button icon={Sparkles} onPress={() => setAdding(true)}>Add experiments with AI</Button>
+      <PracticalJobsBanner subjectId={id} refreshKey={jobsKey} onAdded={load} />
       <Segmented value={tab} onChange={setTab} options={[{ value: 'students', label: 'Students', count: progress.students.length }, { value: 'experiments', label: 'Experiments', count: total }]} />
 
       {tab === 'students' ? (
@@ -72,7 +83,7 @@ export default function PracticalScreen() {
         </>
       ) : (
         <Card>
-          {total === 0 ? <EmptyState icon={FlaskConical} title="No experiments yet" description="Add experiments on the website." />
+          {total === 0 ? <EmptyState icon={FlaskConical} title="No experiments yet" description="Add them with AI from a topic or a photo of your practical list, or write them on the website." />
             : progress.experiments.map((e, i) => (
               <View key={e.id}>
                 {i > 0 && <Divider />}
@@ -92,8 +103,21 @@ export default function PracticalScreen() {
         </Card>
       )}
 
+      <AddWithAiSheet subjectId={id} open={adding} onClose={() => setAdding(false)}
+        onStarted={() => { setAdding(false); setJobsKey(k => k + 1); toast("Started in the background. We've emailed you, and will again when it's done.") }} />
       <SubmissionsSheet subjectId={id} student={student} experiments={progress.experiments} onClose={() => setStudent(null)} />
     </Screen>
+  )
+}
+
+/** One figure in the stats card: icon, number and label, shrinking to fit a third of the width. */
+function MiniStat({ label, value, icon: Icon, color }: { label: string; value: React.ReactNode; icon: typeof Check; color: string }) {
+  return (
+    <View style={{ flex: 1, minWidth: 0, alignItems: 'center', gap: 4, paddingVertical: 14, paddingHorizontal: 6 }}>
+      <Icon size={18} color={color} />
+      <Text size={20} weight="semibold" tabular numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <Text size={12} tone="mutedForeground" numberOfLines={1}>{label}</Text>
+    </View>
   )
 }
 
@@ -123,13 +147,18 @@ function StudentDetail({ subjectId, student, experiments }: { subjectId: string;
   const [submissions, setSubmissions] = useState<StudentSubmission[] | null>(null)
   const [error, setError] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const { exporting, exportReport, viewer } = useReportExport()
+  const reportPath = `/api/practicals/${subjectId}/students/${student.id}/report`
   useEffect(() => {
     api<{ submissions: StudentSubmission[] }>(`/api/practicals/${subjectId}/students/${student.id}`).then(d => setSubmissions(d.submissions)).catch(err => setError(errorMessage(err)))
   }, [subjectId, student.id])
 
   return (
     <>
-      <View style={{ gap: 6, marginBottom: 14 }}>
+      <Button variant="outline" icon={FileDown} loading={exporting === 'journal'} disabled={Boolean(exporting)} onPress={() => exportReport('journal', reportPath)} style={{ marginBottom: 14 }}>
+        {exporting === 'journal' ? 'Preparing PDF…' : 'Download journal PDF'}
+      </Button>
+      <View style={{ gap: 2, marginBottom: 14 }}>
         {student.cells.map((cell, i) => {
           const e = experiments[i]
           return (
@@ -139,6 +168,8 @@ function StudentDetail({ subjectId, student, experiments }: { subjectId: string;
               <Text size={12} tone="mutedForeground" tabular>
                 {cell.status === 'solved' ? (cell.hiddenTotal ? `hidden ${cell.hiddenPassed}/${cell.hiddenTotal}` : 'solved') : cell.status === 'attempted' ? `${cell.attempts} tries` : cell.status === 'open' ? 'not started' : 'locked'}
               </Text>
+              {exporting === cell.experiment ? <View style={{ width: 34, alignItems: 'center' }}><Spinner /></View>
+                : <IconButton icon={FileDown} size={34} label={`Download the PDF of experiment ${e?.order}`} disabled={Boolean(exporting)} onPress={() => exportReport(cell.experiment, `${reportPath}?experiment=${cell.experiment}`)} />}
             </View>
           )
         })}
@@ -166,6 +197,8 @@ function StudentDetail({ subjectId, student, experiments }: { subjectId: string;
           ))}
         </View>
       )}
+      {/* Inside the sheet, so on iPhone it opens on top of it. */}
+      {viewer}
     </>
   )
 }

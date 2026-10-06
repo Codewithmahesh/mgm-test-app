@@ -5,7 +5,7 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { CopyCode, RoomStatusBadge } from '@/components/common'
 import { LeaderboardTab, OverviewTab, ParticipantsTab, QuestionsTab, SettingsTab, WaitingRoomCard, useWaitingRoom } from '@/components/room-tabs'
 import { Alert, Button, Field, NumberInput, PageLoader, Screen, ScreenHeader, Sheet, Text, useFeedback } from '@/components/ui'
-import { api, cached, errorMessage, formatDate, type BankQuestion, type Room } from '@/lib/api'
+import { api, cached, errorMessage, formatDate, paperSummary, type BankQuestion, type Room } from '@/lib/api'
 import { cancelReminder, remindAt } from '@/lib/notify'
 import { radius, useColors } from '@/theme'
 
@@ -82,7 +82,7 @@ export default function RoomScreen() {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <CopyCode code={room.code} />
-          <Text size={13} tone="mutedForeground">{room.durationMinutes} min · {room.questionsPerStudent} MCQ{room.codingQuestions ? ` + ${room.codingQuestions} coding` : ''} per student</Text>
+          <Text size={13} tone="mutedForeground">{room.durationMinutes} min · {paperSummary(room)} per student</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
           {room.status === 'draft' && <Button icon={Play} loading={busy === 'open'} disabled={busy !== null} style={{ flex: 1 }} onPress={() => setStatus('open')}>{busy === 'open' ? 'Opening…' : 'Open room'}</Button>}

@@ -15,7 +15,7 @@ import { useSession } from '@/lib/session'
 import { radius, useColors } from '@/theme'
 
 type Method = 'ai' | 'csv' | 'manual' | 'bank'
-type Defaults = { mcq: number; coding: number; marks: number; bloomPlan: Room['bloomPlan']; setCount: number }
+type Defaults = { mcq: number; tf: number; coding: number; marks: number; bloomPlan: Room['bloomPlan']; setCount: number }
 
 export default function AddQuestions() {
   const params = useLocalSearchParams<{ roomId?: string; method?: Method; reviewJob?: string }>()
@@ -39,7 +39,7 @@ export default function AddQuestions() {
     if (!roomId) return
     api<{ room: Room }>(`/api/rooms/${roomId}`).then(({ room }) => {
       setRoomTitle(room.title)
-      setDefaults({ mcq: room.questionsPerStudent, coding: room.codingQuestions, marks: room.marksPerQuestion, bloomPlan: room.bloomPlan, setCount: room.setCount })
+      setDefaults({ mcq: room.questionsPerStudent, tf: room.tfSeparate ? room.tfQuestions : 0, coding: room.codingQuestions, marks: room.marksPerQuestion, bloomPlan: room.bloomPlan, setCount: room.setCount })
     }).catch(() => {})
   }, [roomId])
 
@@ -67,7 +67,7 @@ export default function AddQuestions() {
         try {
           await api(`/api/rooms/${roomId}`, { method: 'PATCH', body: {
             ...(plan.sets.length ? { paperMode: 'sets', setCount: plan.sets.length } : {}),
-            questionsPerStudent: plan.mcqPerSet, codingQuestions: plan.codingPerSet,
+            questionsPerStudent: plan.mcqPerSet, tfQuestions: plan.tfPerSet ?? 0, codingQuestions: plan.codingPerSet,
             ...(plan.bloomPlan ? { bloomPlan: plan.bloomPlan } : {}),
           } })
           applied = plan.sets.length ? ` Each student now gets one of sets ${plan.sets.join(', ')}.` : " Every paper now uses this Bloom's level plan."
@@ -84,7 +84,8 @@ export default function AddQuestions() {
     router.back()
   }
 
-  const mcqs = drafts.filter(q => q.type !== 'coding').length
+  const mcqs = drafts.filter(q => q.type === 'mcq').length
+  const tfs = drafts.filter(q => q.type === 'tf').length
   const draftSets = [...new Set(drafts.map(q => q.set).filter(Boolean))].sort()
   const methods: { value: Method; label: string; icon: LucideIcon; hint: string }[] = [
     { value: 'ai', label: 'Generate with AI', icon: Sparkles, hint: 'From PDFs, Word/LaTeX files, notes or a topic' },
@@ -125,7 +126,7 @@ export default function AddQuestions() {
               </View>
             ))}
           </Card>
-          <Text size={13} tone="mutedForeground" center>{mcqs} MCQ · {drafts.length - mcqs} coding{draftSets.length ? ` · ${draftSets.map(s => `Set ${s}: ${drafts.filter(q => q.set === s).length}`).join(' · ')}` : ''}</Text>
+          <Text size={13} tone="mutedForeground" center>{mcqs} MCQ{tfs ? ` · ${tfs} True/False` : ''} · {drafts.length - mcqs - tfs} coding{draftSets.length ? ` · ${draftSets.map(s => `Set ${s}: ${drafts.filter(q => q.set === s).length}`).join(' · ')}` : ''}</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Button variant="outline" icon={Plus} style={{ flex: 1 }} onPress={() => setEditing({ index: null, question: blankQuestion() })}>Add another</Button>
             <Button style={{ flex: 1.4 }} loading={saving} onPress={saveDrafts}>{saving ? 'Saving…' : `Save ${drafts.length}`}</Button>
@@ -188,6 +189,9 @@ const MAX_FILES_BYTES = 4 * 1024 * 1024
 const MAX_SETS = 20
 const MAX_TOTAL_MCQ = 1000
 const MAX_TOTAL_CODING = 100
+// True/False per set and in total (the server allows up to 500 per generation).
+const MAX_TF_PER_SET = 120
+const MAX_TOTAL_TF = 500
 
 function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null; roomId: string | null; onResult: (questions: DraftQuestion[], plan: GenerationPlan, jobId: string) => void }) {
   const c = useColors()
@@ -200,6 +204,7 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [mcqCount, setMcqCount] = useState(String(Math.min(defaults?.mcq || 10, 120)))
+  const [tfCount, setTfCount] = useState(String(Math.min(defaults?.tf ?? 0, MAX_TF_PER_SET)))
   const [codingCount, setCodingCount] = useState(String(Math.min(defaults?.coding ?? 0, MAX_TOTAL_CODING)))
   const [bloomMode, setBloomMode] = useState<BloomMode>(defaults?.bloomPlan?.length ? 'custom' : 'mixed')
   const [draft, setDraft] = useState<PlanDraft>(() => (defaults?.bloomPlan?.length ? planToDraft(defaults.bloomPlan, defaults.marks) : emptyPlanDraft(defaults?.marks ?? 1)))
@@ -212,6 +217,7 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
   const [error, setError] = useState('')
 
   const perSetMcq = Math.max(0, Math.round(Number(mcqCount) || 0))
+  const perSetTf = Math.max(0, Math.round(Number(tfCount) || 0))
   const perSetCoding = Math.max(0, Math.round(Number(codingCount) || 0))
   const sets = useSets ? Math.max(0, Math.round(Number(setCountText) || 0)) : 1
   const custom = bloomMode === 'custom'
@@ -219,6 +225,7 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
     ? (() => { const planned = BLOOM_LEVELS.map(level => Math.max(0, Math.round(Number(draft[level].count) || 0))); const extra = splitByShares(Math.max(0, perSetMcq - draftCount(draft))); return planned.map((n, i) => n + extra[i]) })()
     : bloomMode === 'mixed' ? splitByShares(perSetMcq) : BLOOM_LEVELS.map(level => (level === bloomMode ? perSetMcq : 0))
   const totalMcq = perSetMcq * Math.max(1, sets)
+  const totalTf = perSetTf * Math.max(1, sets)
   const totalCoding = perSetCoding * Math.max(1, sets)
   const letters = letterSets(sets)
   const canApply = inRoom && (useSets || custom)
@@ -244,12 +251,13 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
     if (mode === 'pdf' && !files.length) return setError('Choose at least one file first.')
     if (mode === 'text' && text.trim().length < 50) return setError('Paste at least a paragraph of content.')
     if (mode === 'topic' && !topic.trim() && !description.trim()) return setError('Enter a topic or instructions.')
-    if (perSetMcq + perSetCoding === 0) return setError('Ask for at least one question.')
+    if (perSetMcq + perSetTf + perSetCoding === 0) return setError('Ask for at least one question.')
     if (custom && draftCount(draft) > perSetMcq) return setError(`The Bloom levels add up to ${draftCount(draft)} questions but you asked for ${perSetMcq}.`)
     const assigned = custom ? draftCount(draft) : perSetMcq
     if (custom && assigned < perSetMcq && !(await confirm({ title: 'Bloom plan has unassigned questions', description: `Your plan assigns ${assigned} of ${perSetMcq} MCQs per set. The remaining ${perSetMcq - assigned} will be balanced across Bloom's levels. Continue?`, confirmLabel: 'Continue', cancelLabel: 'Review plan' }))) return
     if (useSets && (sets < 2 || sets > MAX_SETS)) return setError(`Choose between 2 and ${MAX_SETS} sets.`)
     if (totalMcq > MAX_TOTAL_MCQ) return setError(`That is ${totalMcq} MCQs in total; generate at most ${MAX_TOTAL_MCQ} at a time.`)
+    if (totalTf > MAX_TOTAL_TF) return setError(`That is ${totalTf} True/False questions in total; generate at most ${MAX_TOTAL_TF} at a time.`)
     if (totalCoding > MAX_TOTAL_CODING) return setError(`That is ${totalCoding} coding problems in total; generate at most ${MAX_TOTAL_CODING} at a time.`)
     setStarting(true)
     try {
@@ -257,6 +265,7 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
       const form = new FormData()
       form.append('topic', topic)
       form.append('description', description)
+      form.append('tfCount', String(perSetTf))
       form.append('codingCount', String(perSetCoding))
       form.append('sets', String(useSets ? sets : 1))
       if (bloomMode === 'mixed' || custom) {
@@ -272,7 +281,7 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
       if (custom) form.append('bloomPlan', JSON.stringify(draftToPlan(draft)))
       form.append('applyToRoom', String(canApply && applyToRoom))
       const { job } = await api<{ job: { id: string } }>('/api/generation-jobs', { body: form })
-      setRunning({ jobId: job.id, total: totalMcq + totalCoding })
+      setRunning({ jobId: job.id, total: totalMcq + totalTf + totalCoding })
     } catch (err) { setError(errorMessage(err)) } finally { setStarting(false) }
   }
 
@@ -331,7 +340,11 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
       <Step n={1} title="How many questions" />
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <Field label={useSets ? 'MCQs per set' : 'MCQs'} style={{ flex: 1 }}><NumberInput keyboardType="number-pad" value={mcqCount} onChangeText={setMcqCount} /></Field>
+        <Field label={useSets ? 'True/False per set' : 'True / False'} style={{ flex: 1 }}><NumberInput keyboardType="number-pad" value={tfCount} onChangeText={setTfCount} /></Field>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
         <Field label={useSets ? 'Coding per set' : 'Coding problems'} style={{ flex: 1 }}><NumberInput keyboardType="number-pad" value={codingCount} onChangeText={setCodingCount} /></Field>
+        <View style={{ flex: 1 }} />
       </View>
 
       <Step n={2} title="Bloom's taxonomy levels" />
@@ -351,17 +364,17 @@ function AiGenerator({ defaults, roomId, onResult }: { defaults: Defaults | null
       {useSets && (
         <View style={{ gap: 8, borderRadius: radius.lg, borderWidth: 1, borderColor: c.primaryBorder, backgroundColor: c.primarySoft, padding: 12 }}>
           <Field label="How many sets?" style={{ width: 140 }}><NumberInput keyboardType="number-pad" value={setCountText} onChangeText={setSetCountText} /></Field>
-          <Text size={13} tone="mutedForeground" leading={19}>{sets >= 2 && sets <= MAX_SETS ? `Sets ${letters.join(', ')}, each with ${perSetMcq} MCQs${perSetCoding ? ` + ${perSetCoding} coding` : ''} and the same Bloom's levels: ${totalMcq + totalCoding} questions in total.` : `Enter between 2 and ${MAX_SETS} sets.`}</Text>
+          <Text size={13} tone="mutedForeground" leading={19}>{sets >= 2 && sets <= MAX_SETS ? `Sets ${letters.join(', ')}, each with ${perSetMcq} MCQs${perSetTf ? ` + ${perSetTf} True/False` : ''}${perSetCoding ? ` + ${perSetCoding} coding` : ''} and the same Bloom's levels: ${totalMcq + totalTf + totalCoding} questions in total.` : `Enter between 2 and ${MAX_SETS} sets.`}</Text>
         </View>
       )}
       {canApply && (
         <View style={{ borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, backgroundColor: c.muted, padding: 12 }}>
           <Checkbox checked={applyToRoom} onChange={setApplyToRoom}
-            label={`Use these for this room's papers: ${[useSets && `each student gets one set (${letters.join(', ')}), revealed after submitting`, `${perSetMcq} MCQs${perSetCoding ? ` + ${perSetCoding} coding` : ''} per student`, custom && 'the per-level questions and marks above'].filter(Boolean).join('; ')}.`} />
+            label={`Use these for this room's papers: ${[useSets && `each student gets one set (${letters.join(', ')}), revealed after submitting`, `${perSetMcq} MCQs${perSetTf ? ` + ${perSetTf} True/False` : ''}${perSetCoding ? ` + ${perSetCoding} coding` : ''} per student`, custom && 'the per-level questions and marks above'].filter(Boolean).join('; ')}.`} />
         </View>
       )}
       {totalMcq > 120 && <Alert>{`That is ${totalMcq} MCQs in total; the AI can make at most 120 at a time. Use fewer sets or fewer questions per set.`}</Alert>}
-      <Button size="lg" icon={starting ? undefined : Wand2} loading={starting} full onPress={generate}>{starting ? 'Starting…' : `Generate ${totalMcq + totalCoding || ''} questions`}</Button>
+      <Button size="lg" icon={starting ? undefined : Wand2} loading={starting} full onPress={generate}>{starting ? 'Starting…' : `Generate ${totalMcq + totalTf + totalCoding || ''} questions`}</Button>
     </View>
   )
 }
