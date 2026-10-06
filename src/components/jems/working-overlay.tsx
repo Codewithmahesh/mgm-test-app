@@ -72,7 +72,7 @@ export function WorkingOverlay({ eyebrow, title, steps, task, onDone, onError }:
             </View>
           </Animated.View>
           <Animated.View entering={FadeIn.delay(100)}><Eyebrow tone="brand" center style={{ marginTop: 28 }}>{eyebrow}</Eyebrow></Animated.View>
-          <Animated.View entering={FadeInDown.delay(180).springify()}>
+          <Animated.View entering={FadeInDown.delay(120).duration(260)}>
             <Text serif size={28} leading={34} color={c.primaryForeground} center style={{ marginTop: 10 }}>{title}</Text>
           </Animated.View>
           <View style={styles.steps} accessibilityLiveRegion="polite">
@@ -80,9 +80,9 @@ export function WorkingOverlay({ eyebrow, title, steps, task, onDone, onError }:
               const done = i < ticked
               const active = i === ticked
               return (
-                <Animated.View key={step} entering={FadeInDown.delay(260 + i * 90).springify()} style={styles.step}>
+                <Animated.View key={step} entering={FadeInDown.delay(180 + i * 60).duration(240)} style={styles.step}>
                   <View style={[styles.tick, { backgroundColor: done ? c.brand : 'rgba(255,255,255,0.08)', borderColor: done ? c.brand : 'rgba(255,255,255,0.18)' }]}>
-                    {done ? <Animated.View entering={ZoomIn.springify().damping(11)}><Check size={14} color={c.navy} strokeWidth={3} /></Animated.View>
+                    {done ? <Animated.View entering={ZoomIn.duration(180)}><Check size={14} color={c.navy} strokeWidth={3} /></Animated.View>
                       : active ? <ActivityIndicator size="small" color={c.brand} /> : null}
                   </View>
                   <Text size={15} color={done ? c.primaryForeground : active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'} style={{ flex: 1 }}>{step}</Text>

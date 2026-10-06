@@ -9,8 +9,8 @@ function BouncyIcon({ icon: Icon, color, focused }: { icon: LucideIcon; color: C
   const lift = useSharedValue(0)
   useEffect(() => {
     if (focused) {
-      scale.set(withSequence(withTiming(1.22, { duration: 120 }), withSpring(1.06, SPRING)))
-      lift.set(withSequence(withTiming(-4, { duration: 120 }), withSpring(0, SPRING)))
+      scale.set(withSequence(withTiming(1.08, { duration: 120 }), withSpring(1, SPRING)))
+      lift.set(withSequence(withTiming(-1.5, { duration: 120 }), withSpring(0, SPRING)))
     } else {
       scale.set(withSpring(1, SPRING))
     }

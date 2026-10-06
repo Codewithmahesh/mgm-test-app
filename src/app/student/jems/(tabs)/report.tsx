@@ -1,11 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { ArrowRight, ChartColumn } from 'lucide-react-native'
+import * as WebBrowser from 'expo-web-browser'
+import { ArrowRight, ChartColumn, CodeXml, ExternalLink } from 'lucide-react-native'
 import { useEffect } from 'react'
 import { StyleSheet, View } from 'react-native'
 import Animated from 'react-native-reanimated'
 import { NavyBanner } from '@/components/brand'
-import { Confetti, enter, Meter, ScoreRing, useCountUp } from '@/components/jems'
-import { Alert, Badge, Button, Card, CardHeader, Divider, EmptyState, Eyebrow, PageLoader, Row, Screen, ScreenHeader, StatCard, Text } from '@/components/ui'
+import { Confetti, enter, Meter, ScoreRing, Tap, useCountUp } from '@/components/jems'
+import { Alert, Badge, Button, Card, CardHeader, Divider, EmptyState, Eyebrow, PageLoader, Row, Screen, ScreenHeader, StatCard, Text, useFeedback } from '@/components/ui'
 import { getReport, getStatus, levelLabel, STRENGTH_TONE, VERDICT_META, type SkillReport } from '@/lib/jems'
 import { useJemsData } from '@/lib/jems-store'
 import { useColors, type Tone } from '@/theme'
@@ -44,10 +45,12 @@ export default function ReportTab() {
 
 function ReportBody({ report }: { report: SkillReport }) {
   const c = useColors()
+  const { toast } = useFeedback()
   const assessment = useCountUp(report.scores.assessment, 900, 300)
   const projects = useCountUp(report.scores.projects, 900, 400)
-  const dsa = useCountUp(report.scores.dsa, 900, 500)
-  const solved = useCountUp(report.dsa.solved, 1100, 400)
+  const dsa = useCountUp(report.scores.dsa ?? 0, 900, 500)
+  const solved = useCountUp(report.dsa?.solved ?? 0, 1100, 400)
+  const open = (url: string) => { WebBrowser.openBrowserAsync(url, { toolbarColor: c.card, controlsColor: c.primary }).catch(() => toast("Couldn't open the link.", 'error')) }
 
   return (
     <>
@@ -67,7 +70,7 @@ function ReportBody({ report }: { report: SkillReport }) {
       <Animated.View entering={enter(1)} style={styles.tiles}>
         <StatCard label="Assessment" value={assessment} suffix="%" style={styles.tile} />
         <StatCard label="Projects" value={projects} suffix="%" style={styles.tile} />
-        <StatCard label="DSA" value={dsa} suffix="%" style={styles.tile} />
+        <StatCard label="DSA" value={report.scores.dsa === null ? '–' : dsa} suffix={report.scores.dsa === null ? undefined : '%'} style={styles.tile} />
       </Animated.View>
 
       <Animated.View entering={enter(2)}>
@@ -90,8 +93,8 @@ function ReportBody({ report }: { report: SkillReport }) {
       </Animated.View>
 
       <Animated.View entering={enter(3)}>
-        <Card>
-          <CardHeader title={<Text size={17} weight="semibold">DSA</Text>} description="From your LeetCode profile"
+        {report.dsa ? <Card>
+          <CardHeader title={<Text size={17} weight="semibold">DSA</Text>} description={`From LeetCode · ${report.dsa.username}`}
             action={<Text size={28} weight="semibold" tabular tracking={-0.5}>{solved}<Text size={14} tone="mutedForeground"> solved</Text></Text>} />
           <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 14 }}>
             {report.dsa.byDifficulty.map((d, i) => (
@@ -105,7 +108,12 @@ function ReportBody({ report }: { report: SkillReport }) {
               {report.dsa.topics.map(topic => <Badge key={topic.name} tone={STRENGTH_TONE[topic.strength]}>{topic.name}</Badge>)}
             </Row>
           </View>
-        </Card>
+        </Card> : (
+          <Card>
+            <EmptyState icon={CodeXml} title="DSA not checked" description="Add your LeetCode profile in onboarding and your problem-solving gets scored too."
+              action={<Button variant="outline" onPress={() => router.push('/student/jems/onboarding/connect')}>Connect LeetCode</Button>} />
+          </Card>
+        )}
       </Animated.View>
 
       <Animated.View entering={enter(4)}>
@@ -114,13 +122,15 @@ function ReportBody({ report }: { report: SkillReport }) {
           {report.projects.map((project, i) => (
             <View key={project.name}>
               {i > 0 && <Divider />}
-              <View style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
-                <Row style={{ justifyContent: 'space-between' }}>
+              <Tap scaleTo={0.985} onPress={() => open(project.url)} accessibilityRole="link" accessibilityLabel={`${project.name} on GitHub`}
+                style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
+                <Row gap={8} style={{ justifyContent: 'space-between' }}>
                   <Text mono size={16} weight="semibold" numberOfLines={1} style={{ flex: 1 }}>{project.name}</Text>
-                  <Text size={14} tone="mutedForeground">{project.language}</Text>
+                  {project.language ? <Text size={14} tone="mutedForeground">{project.language}</Text> : null}
+                  <ExternalLink size={16} color={c.subtle} />
                 </Row>
                 <Row gap={8} wrap>{project.tags.map(tag => <Badge key={tag.label} tone={tag.tone}>{tag.label}</Badge>)}</Row>
-              </View>
+              </Tap>
             </View>
           ))}
         </Card>

@@ -12,7 +12,7 @@ export function RadioOption({ label, selected, onPress }: { label: string; selec
     <Tap onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={label}>
       <Animated.View style={[styles.card, { borderColor: selected ? c.primary : c.border, backgroundColor: selected ? c.primarySoft : c.card }, pop]}>
         <View style={[styles.radio, { borderColor: selected ? c.primary : c.borderStrong, backgroundColor: selected ? c.primary : c.card }]}>
-          {selected && <Animated.View entering={ZoomIn.springify().damping(12)} style={[styles.dot, { backgroundColor: c.primaryForeground }]} />}
+          {selected && <Animated.View entering={ZoomIn.duration(180)} style={[styles.dot, { backgroundColor: c.primaryForeground }]} />}
         </View>
         <Text size={16} weight={selected ? 'medium' : 'regular'} color={selected ? c.primaryInk : c.foreground} style={{ flex: 1 }}>{label}</Text>
       </Animated.View>

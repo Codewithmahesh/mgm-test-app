@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
-import Animated, { SlideInDown } from 'react-native-reanimated'
+import Animated, { Easing, SlideInDown } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ScreenHeader, Text } from '@/components/ui'
 import { useColors } from '@/theme'
@@ -44,7 +44,7 @@ export function StickyFooter({ children, caption, row }: { children: React.React
   const c = useColors()
   const insets = useSafeAreaInsets()
   return (
-    <Animated.View entering={SlideInDown.springify().damping(20).stiffness(180)}
+    <Animated.View entering={SlideInDown.duration(240).easing(Easing.out(Easing.cubic))}
       style={[styles.footer, { backgroundColor: c.card, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 12) + 4 }]}>
       {caption ? (typeof caption === 'string' ? <Text size={13} tone="mutedForeground" center>{caption}</Text> : caption) : null}
       <View style={row ? styles.row : undefined}>{children}</View>

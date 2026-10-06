@@ -9,7 +9,7 @@ export function TickBox({ checked, tone = 'primary', size = 24 }: { checked: boo
   const solid = tone === 'success' ? c.success : c.primary
   return (
     <View style={{ width: size, height: size, borderRadius: radius.sm, borderWidth: 1.5, borderColor: checked ? solid : c.borderStrong, backgroundColor: checked ? solid : c.card, alignItems: 'center', justifyContent: 'center' }}>
-      {checked && <Animated.View entering={ZoomIn.springify().damping(11)}><Check size={size * 0.62} color={c.primaryForeground} strokeWidth={3} /></Animated.View>}
+      {checked && <Animated.View entering={ZoomIn.duration(180)}><Check size={size * 0.62} color={c.primaryForeground} strokeWidth={3} /></Animated.View>}
     </View>
   )
 }

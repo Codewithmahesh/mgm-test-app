@@ -1,9 +1,11 @@
-// JEMS: helps final-year students get hired by MSMEs. There is no JEMS backend yet, so this file is
-// the whole data layer: typed models plus an in-memory mock seeded with the sample data from the
-// design. Screens only call the async functions below, so each one can become a real `api()` call
-// later without touching the UI.
+// JEMS: helps final-year students get hired by MSMEs. This file is the whole data layer: typed models,
+// real GitHub and LeetCode data from the JEMS stats server (lib/jems-sources.ts), and an in-memory mock
+// seeded with the sample data from the design for everything that has no backend yet (assessment,
+// gaps, roadmap). Screens only call the async functions below, so each one can become a real `api()`
+// call later without touching the UI.
 
 import type { Tone } from '@/theme'
+import { fetchGithub, fetchLeetcode, type GithubRepoData, type LeetcodeData } from './jems-sources'
 
 /* ---------------- Models ---------------- */
 
@@ -24,9 +26,28 @@ export type SkillRatings = Record<string, Level>
 export type Links = { github: string; leetcode: string; repos: string[] }
 export type Onboarding = { profile: JemsProfile; ratings: SkillRatings; links: Links }
 
-export type Repo = { name: string; language: string }
-export type GithubLookup = { username: string; repoCount: number; repos: Repo[] }
-export type LeetcodeLookup = { username: string; solved: number }
+export type Repo = {
+  name: string
+  language: string | null
+  description: string | null
+  url: string
+  homepage: string | null
+  topics: string[]
+  stars: number
+  isFork: boolean
+  pushedAt: string | null
+}
+export type GithubLookup = { username: string; name: string | null; repoCount: number; repos: Repo[] }
+export type LeetcodeLookup = {
+  username: string
+  ranking: number | null
+  solved: number
+  byDifficulty: { label: Difficulty; solved: number }[]
+  /** Solved count per LeetCode tag (Array, Dynamic Programming…), most solved first. */
+  tags: { name: string; solved: number }[]
+}
+/** What the student connected in onboarding, kept so the report can be built from it. */
+export type Sources = { github: GithubLookup | null; leetcode: LeetcodeLookup | null }
 
 /** Where the student is in the JEMS journey. */
 export type JemsStatus = { onboarded: boolean; assessed: boolean; roadmapReady: boolean; roleLabel: string }
@@ -76,14 +97,16 @@ export type SkillReport = {
   readiness: number
   headline: string
   summary: string
-  scores: { assessment: number; projects: number; dsa: number }
+  /** `dsa` is null when no LeetCode profile was connected. */
+  scores: { assessment: number; projects: number; dsa: number | null }
   skills: { name: string; selfRated: Level; verified: Level; verdict: Verdict }[]
   dsa: {
+    username: string
     solved: number
     byDifficulty: { label: Difficulty; solved: number; target: number }[]
     topics: { name: string; strength: Strength }[]
-  }
-  projects: { name: string; language: string; tags: { label: string; tone: Tone }[] }[]
+  } | null
+  projects: { name: string; language: string | null; url: string; tags: { label: string; tone: Tone }[] }[]
 }
 
 export type Priority = 'critical' | 'important' | 'nice'
@@ -275,23 +298,9 @@ const TOPIC_GUIDE: Record<string, { lesson?: string; url: string }> = {
   'Keys and constraints': { url: 'https://www.postgresql.org/docs/current/ddl-constraints.html' },
 }
 
-const REPOS: Repo[] = [
-  { name: 'shop-api', language: 'TypeScript' },
-  { name: 'portfolio-site', language: 'JavaScript' },
-  { name: 'expense-tracker', language: 'Python' },
-  { name: 'chat-app', language: 'JavaScript' },
-  { name: 'dsa-practice', language: 'C++' },
-  { name: 'weather-cli', language: 'Python' },
-  { name: 'notes-api', language: 'TypeScript' },
-  { name: 'college-fest', language: 'HTML' },
-]
-
-const REPORT: SkillReport = {
-  updatedLabel: 'Updated today',
-  readiness: 61,
-  headline: 'Solid base for Full Stack roles',
-  summary: 'Backend and DSA are holding you back.',
-  scores: { assessment: 71, projects: 58, dsa: 54 },
+/** The assessment part of the report. Mocked until the assessment is graded on a server. */
+const ASSESSMENT = {
+  score: 71,
   skills: [
     { name: 'JavaScript', selfRated: 'intermediate', verified: 'intermediate', verdict: 'match' },
     { name: 'TypeScript', selfRated: 'beginner', verified: 'beginner', verdict: 'match' },
@@ -299,26 +308,89 @@ const REPORT: SkillReport = {
     { name: 'Node.js', selfRated: 'intermediate', verified: 'beginner', verdict: 'below' },
     { name: 'Python', selfRated: 'intermediate', verified: 'beginner', verdict: 'below' },
     { name: 'SQL', selfRated: 'beginner', verified: 'beginner', verdict: 'match' },
-  ],
-  dsa: {
-    solved: 187,
-    byDifficulty: [
-      { label: 'Easy', solved: 98, target: 140 },
-      { label: 'Medium', solved: 71, target: 170 },
-      { label: 'Hard', solved: 18, target: 150 },
-    ],
-    topics: [
-      { name: 'Arrays', strength: 'strong' },
-      { name: 'Strings', strength: 'strong' },
-      { name: 'Trees', strength: 'ok' },
-      { name: 'Dynamic programming', strength: 'weak' },
-      { name: 'Graphs', strength: 'weak' },
-    ],
-  },
-  projects: [
-    { name: 'shop-api', language: 'TypeScript', tags: [{ label: 'README', tone: 'green' }, { label: 'No tests', tone: 'red' }, { label: 'Active', tone: 'green' }] },
-    { name: 'portfolio-site', language: 'JavaScript', tags: [{ label: 'README', tone: 'green' }, { label: 'No tests', tone: 'red' }, { label: 'Stale', tone: 'amber' }] },
-  ],
+  ] as SkillReport['skills'],
+}
+
+/* ---------------- Report from GitHub and LeetCode ---------------- */
+
+const DAY = 24 * 60 * 60 * 1000
+const daysSince = (iso: string | null) => (iso ? (Date.now() - new Date(iso).getTime()) / DAY : Infinity)
+
+/** Own, maintained work first (most recently pushed), then forks and archived repos. */
+function toRepos(repos: GithubRepoData[]): Repo[] {
+  const rank = (r: GithubRepoData) => (r.isFork || r.isArchived ? 1 : 0)
+  return [...repos]
+    .sort((a, b) => rank(a) - rank(b) || daysSince(a.pushedAt) - daysSince(b.pushedAt))
+    .map(r => ({ name: r.name, language: r.language, description: r.description, url: r.url, homepage: r.homepage || null, topics: r.topics, stars: r.stars, isFork: r.isFork, pushedAt: r.pushedAt }))
+}
+
+function toLeetcode(data: LeetcodeData): LeetcodeLookup {
+  const count = (difficulty: string) => data.solved.find(s => s.difficulty === difficulty)?.count ?? 0
+  const { fundamental, intermediate, advanced } = data.solvedByTopic
+  return {
+    username: data.username,
+    ranking: data.ranking,
+    solved: count('All'),
+    byDifficulty: (['Easy', 'Medium', 'Hard'] as const).map(label => ({ label, solved: count(label) })),
+    tags: [...fundamental, ...intermediate, ...advanced]
+      .map(t => ({ name: t.tagName, solved: t.problemsSolved }))
+      .sort((a, b) => b.solved - a.solved),
+  }
+}
+
+/** Roughly what a candidate who clears most MSME coding rounds has solved. */
+const DSA_TARGETS: Record<Difficulty, number> = { Easy: 140, Medium: 170, Hard: 150 }
+const DSA_WEIGHT: Record<Difficulty, number> = { Easy: 1, Medium: 2, Hard: 3 }
+/** The topics coding rounds lean on, shown on the report whether or not the student has touched them. */
+const CORE_TOPICS = ['Array', 'String', 'Hash Table', 'Tree', 'Binary Search', 'Dynamic Programming', 'Graph']
+const strengthOf = (solved: number): Strength => (solved >= 20 ? 'strong' : solved >= 8 ? 'ok' : 'weak')
+
+function dsaPart(lc: LeetcodeLookup) {
+  const byDifficulty = lc.byDifficulty.map(d => ({ ...d, target: DSA_TARGETS[d.label] }))
+  // Harder problems count for more; anything past the target doesn't add.
+  const max = byDifficulty.reduce((sum, d) => sum + d.target * DSA_WEIGHT[d.label], 0)
+  const got = byDifficulty.reduce((sum, d) => sum + Math.min(d.solved, d.target) * DSA_WEIGHT[d.label], 0)
+  const topics = CORE_TOPICS.map(name => ({ name, strength: strengthOf(lc.tags.find(t => t.name === name)?.solved ?? 0) }))
+  return { score: Math.round((got / max) * 100), dsa: { username: lc.username, solved: lc.solved, byDifficulty, topics } }
+}
+
+/** A quick review of one repo from its public metadata: how alive, documented and presentable it is. */
+function reviewRepo(repo: Repo) {
+  const age = daysSince(repo.pushedAt)
+  const tags: { label: string; tone: Tone }[] = []
+  let score = 0
+  if (age <= 90) { tags.push({ label: 'Active', tone: 'green' }); score += 30 }
+  else if (age <= 365) { tags.push({ label: 'Updated this year', tone: 'amber' }); score += 15 }
+  else tags.push({ label: 'Stale', tone: 'red' })
+  if (repo.description) { tags.push({ label: 'Description', tone: 'green' }); score += 25 }
+  else tags.push({ label: 'No description', tone: 'red' })
+  if (repo.homepage) { tags.push({ label: 'Live demo', tone: 'green' }); score += 20 }
+  if (repo.topics.length) score += 10
+  if (repo.stars > 0) { tags.push({ label: `${repo.stars} ${repo.stars === 1 ? 'star' : 'stars'}`, tone: 'blue' }); score += 10 }
+  if (repo.isFork) tags.push({ label: 'Fork', tone: 'amber' })
+  else score += 5
+  return { score, project: { name: repo.name, language: repo.language, url: repo.url, tags } }
+}
+
+function buildReport(sources: Sources, picked: string[], roleShort: string): SkillReport {
+  const reviews = (sources.github?.repos ?? []).filter(r => picked.includes(r.name)).map(reviewRepo)
+  const projects = reviews.length ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length) : 0
+  const lc = sources.leetcode ? dsaPart(sources.leetcode) : null
+  const parts = [ASSESSMENT.score, projects, ...(lc ? [lc.score] : [])]
+  const readiness = Math.round(parts.reduce((sum, n) => sum + n, 0) / parts.length)
+  const weak = [projects < 60 && 'your projects', lc && lc.score < 60 && 'DSA'].filter(Boolean) as string[]
+  return {
+    updatedLabel: 'Updated today',
+    readiness,
+    headline: `${readiness >= 70 ? 'Strong' : 'Solid'} base for ${roleShort} roles`,
+    summary: !lc ? 'Connect LeetCode to get your DSA checked too.'
+      : weak.length ? `${weak.join(' and ').replace(/^./, ch => ch.toUpperCase())} ${weak.length > 1 ? 'are' : 'is'} holding you back.`
+      : 'Keep building and practising to stay ahead.',
+    scores: { assessment: ASSESSMENT.score, projects, dsa: lc?.score ?? null },
+    skills: ASSESSMENT.skills,
+    dsa: lc?.dsa ?? null,
+    projects: reviews.map(r => r.project),
+  }
 }
 
 const GAPS: Omit<GapAnalysis, 'roleLabel'> = {
@@ -393,6 +465,7 @@ const ROADMAP_SEED: Omit<Roadmap, 'roleShort'> = {
 /** In-memory "server". Lost when the app restarts, like any mock. */
 const db = {
   onboarding: null as Onboarding | null,
+  sources: { github: null, leetcode: null } as Sources,
   assessed: false,
   roadmap: null as Omit<Roadmap, 'roleShort'> | null,
 }
@@ -415,29 +488,40 @@ export async function getSkillCatalog(): Promise<Skill[]> {
   return SKILLS
 }
 
-export async function saveOnboarding(data: Onboarding): Promise<void> {
+export async function saveOnboarding(data: Onboarding, sources?: Sources): Promise<void> {
   await wait()
   db.onboarding = clone(data)
+  if (sources) db.sources = clone(sources)
 }
 
 export const GITHUB_PATTERN = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})\/?$/
 export const LEETCODE_PATTERN = /^(?:https?:\/\/)?(?:www\.)?leetcode\.com\/(?:u\/)?([A-Za-z0-9_-]{1,40})\/?$/
 
-/** Looks up a public GitHub profile. The mock finds everyone except the username "notfound". */
+/** Looks up a public GitHub profile and its repos through the JEMS stats server. */
 export async function verifyGithub(link: string): Promise<GithubLookup> {
-  await wait(1100)
   const username = GITHUB_PATTERN.exec(link.trim())?.[1]
-  if (!username || username.toLowerCase() === 'notfound') throw new Error("We couldn't find that GitHub profile.")
-  return { username, repoCount: 28, repos: REPOS }
+  if (!username) throw new Error('Use a link like github.com/your-name')
+  try {
+    const data = await fetchGithub(username)
+    return { username: data.username, name: data.profile.name, repoCount: data.profile.publicRepos, repos: toRepos(data.repos) }
+  } catch (err) {
+    throw notFound(err, "We couldn't find that GitHub profile.")
+  }
 }
 
-/** Looks up a public LeetCode profile. The mock finds everyone except the username "notfound". */
+/** Looks up a public LeetCode profile through the JEMS stats server. */
 export async function verifyLeetcode(link: string): Promise<LeetcodeLookup> {
-  await wait(1100)
   const username = LEETCODE_PATTERN.exec(link.trim())?.[1]
-  if (!username || username.toLowerCase() === 'notfound') throw new Error("We couldn't find that LeetCode profile.")
-  return { username, solved: 187 }
+  if (!username) throw new Error('Use a link like leetcode.com/u/your-name')
+  try {
+    return toLeetcode(await fetchLeetcode(username))
+  } catch (err) {
+    throw notFound(err, "We couldn't find that LeetCode profile.")
+  }
 }
+
+/** A friendlier message for a 404; anything else (offline, rate limit) keeps the server's own message. */
+const notFound = (err: unknown, message: string) => (err && typeof err === 'object' && 'status' in err && err.status === 404 ? new Error(message) : err)
 
 export async function getAssessmentInfo(): Promise<AssessmentInfo> {
   await wait(250)
@@ -538,7 +622,7 @@ export async function submitMiniAssessment(moduleId: string, answers: Record<str
 export async function getReport(): Promise<SkillReport | null> {
   await wait()
   if (!db.assessed) return null
-  return { ...clone(REPORT), headline: `Solid base for ${roleOf(db.onboarding?.profile.roleId).short} roles` }
+  return buildReport(db.sources, db.onboarding?.links.repos ?? [], roleOf(db.onboarding?.profile.roleId).short)
 }
 
 export async function getGapAnalysis(): Promise<GapAnalysis | null> {

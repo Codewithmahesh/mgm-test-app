@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated'
 import { useColors } from '@/theme'
 
-const COUNT = 42
+const COUNT = 24
 
 // Deterministic "random" so rendering stays pure: the same burst for the same `run`.
 const rand = (seed: number) => {
@@ -16,7 +16,7 @@ type Piece = { angle: number; speed: number; spin: number; color: string; w: num
 function Bit({ piece }: { piece: Piece }) {
   const t = useSharedValue(0)
   useEffect(() => {
-    t.set(withDelay(piece.delay, withTiming(1, { duration: 1700, easing: Easing.out(Easing.quad) })))
+    t.set(withDelay(piece.delay, withTiming(1, { duration: 1300, easing: Easing.out(Easing.quad) })))
   }, [piece.delay, t])
   const style = useAnimatedStyle(() => {
     const p = t.get()
@@ -42,7 +42,7 @@ export function Confetti({ run }: { run: number }) {
     const r = (k: number) => rand(run * 97 + i * 13 + k)
     return {
       angle: -Math.PI * (0.08 + r(1) * 0.84),
-      speed: 170 + r(2) * 240,
+      speed: 130 + r(2) * 170,
       spin: (r(3) - 0.5) * 900,
       color: colors[i % colors.length],
       w: 6 + r(4) * 6,

@@ -1,0 +1,18 @@
+{
+  "name": "student-tracker-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Express API that combines GitHub repositories and LeetCode stats.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  }
+}

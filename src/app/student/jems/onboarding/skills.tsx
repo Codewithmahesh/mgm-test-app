@@ -81,7 +81,7 @@ export default function SkillsStep() {
                     <View style={styles.rowHead}>
                       <Text size={17} weight="semibold" style={{ flex: 1 }}>{skill.name}</Text>
                       {level ? (
-                        <Animated.View key="added" entering={ZoomIn.springify().damping(12)} exiting={FadeOut.duration(120)}><Badge tone="green">Added</Badge></Animated.View>
+                        <Animated.View key="added" entering={ZoomIn.duration(180)} exiting={FadeOut.duration(120)}><Badge tone="green">Added</Badge></Animated.View>
                       ) : (
                         <Animated.View key="none" entering={FadeIn}><Text size={13} tone="mutedForeground">Not added</Text></Animated.View>
                       )}

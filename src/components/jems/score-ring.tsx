@@ -24,10 +24,10 @@ export function ScoreRing({ value, size = 128, stroke = 12, color, track, textCo
   const circumference = 2 * Math.PI * r
   const progress = useSharedValue(0)
   useEffect(() => {
-    progress.set(withDelay(delay, withTiming(Math.max(0, Math.min(100, value)) / 100, { duration: 1300, easing: Easing.out(Easing.cubic) })))
+    progress.set(withDelay(delay, withTiming(Math.max(0, Math.min(100, value)) / 100, { duration: 800, easing: Easing.out(Easing.cubic) })))
   }, [value, delay, progress])
   const arc = useAnimatedProps(() => ({ strokeDashoffset: circumference * (1 - progress.get()) }))
-  const shown = useCountUp(value, 1300, delay)
+  const shown = useCountUp(value, 800, delay)
 
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}

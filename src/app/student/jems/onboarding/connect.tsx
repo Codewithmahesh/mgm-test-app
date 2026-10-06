@@ -67,7 +67,7 @@ export default function ConnectStep() {
     }
     setSaving(true)
     try {
-      await saveOnboarding(draft)
+      await saveOnboarding(draft, lookups)
       router.push('/student/jems/assessment')
     } catch (err) {
       toast(errorMessage(err), 'error')
@@ -113,19 +113,23 @@ export default function ConnectStep() {
                 invalid={Boolean(github.error)} style={lookups.github ? { borderColor: c.successBorder } : undefined} />
             </Field>
             {lookups.github && (
-              <Animated.View entering={FadeInDown.springify()} style={{ gap: 10 }}>
+              <Animated.View entering={FadeInDown.duration(220)} style={{ gap: 10 }}>
                 <Animated.View style={repoShake}>
                   <Text size={14} tone="mutedForeground">{`${lookups.github.repoCount} public repos found. Pick up to ${MAX_REPOS} for review.`}</Text>
                 </Animated.View>
                 {visibleRepos.map((repo, i) => {
                   const picked = links.repos.includes(repo.name)
+                  const meta = [repo.language, repo.isFork ? 'fork' : null].filter(Boolean).join(' · ')
                   return (
                     <Animated.View key={repo.name} entering={enter(i)} layout={LinearTransition}>
-                      <Tap onPress={() => toggleRepo(repo.name)} accessibilityRole="checkbox" accessibilityState={{ checked: picked }} accessibilityLabel={`${repo.name}, ${repo.language}`}
+                      <Tap onPress={() => toggleRepo(repo.name)} accessibilityRole="checkbox" accessibilityState={{ checked: picked }} accessibilityLabel={meta ? `${repo.name}, ${meta}` : repo.name}
                         style={[styles.repo, { borderColor: picked ? c.primary : c.border, backgroundColor: picked ? c.primarySoft : c.card }]}>
                         <TickBox checked={picked} />
-                        <Text mono size={15} weight={picked ? 'semibold' : 'regular'} color={picked ? c.primaryInk : c.foreground} numberOfLines={1} style={{ flex: 1 }}>{repo.name}</Text>
-                        <Text size={13} color={picked ? c.primaryInk : c.mutedForeground}>{repo.language}</Text>
+                        <View style={{ flex: 1, minWidth: 0, paddingVertical: 8 }}>
+                          <Text mono size={15} weight={picked ? 'semibold' : 'regular'} color={picked ? c.primaryInk : c.foreground} numberOfLines={1}>{repo.name}</Text>
+                          {repo.description ? <Text size={12} color={picked ? c.primaryInk : c.mutedForeground} numberOfLines={1} style={{ marginTop: 2 }}>{repo.description}</Text> : null}
+                        </View>
+                        {meta ? <Text size={13} color={picked ? c.primaryInk : c.mutedForeground}>{meta}</Text> : null}
                       </Tap>
                     </Animated.View>
                   )
@@ -157,8 +161,10 @@ export default function ConnectStep() {
                 invalid={Boolean(leetcode.error)} style={lookups.leetcode ? { borderColor: c.successBorder } : undefined} />
             </Field>
             {lookups.leetcode && (
-              <Animated.View entering={FadeInDown.springify()}>
-                <Text size={14} tone="mutedForeground">{`Profile found. ${lookups.leetcode.solved} problems solved.`}</Text>
+              <Animated.View entering={FadeInDown.duration(220)}>
+                <Text size={14} tone="mutedForeground">
+                  {`Profile found. ${lookups.leetcode.solved} problems solved (${lookups.leetcode.byDifficulty.map(d => `${d.solved} ${d.label.toLowerCase()}`).join(', ')}).`}
+                </Text>
               </Animated.View>
             )}
           </View>
@@ -175,7 +181,7 @@ function LinkHeader({ title, icon, tileColor, checking, verified, optional }: { 
       <View style={[styles.tile, { backgroundColor: tileColor }]}>{icon}</View>
       <Text size={17} weight="semibold" style={{ flex: 1 }}>{title}</Text>
       {verified ? (
-        <Animated.View key="ok" entering={ZoomIn.springify().damping(10)}><Badge tone="green" icon={Check}>Verified</Badge></Animated.View>
+        <Animated.View key="ok" entering={ZoomIn.duration(180)}><Badge tone="green" icon={Check}>Verified</Badge></Animated.View>
       ) : checking ? (
         <Row gap={6}><ActivityIndicator size="small" color={c.primary} /><Text size={13} tone="mutedForeground">Checking…</Text></Row>
       ) : optional ? <Text size={13} tone="subtle">Optional</Text> : null}

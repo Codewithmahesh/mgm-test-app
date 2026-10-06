@@ -52,7 +52,7 @@ export default function JemsLogin() {
         </>
       )}
       footer={<AuthLink text="First time here?" link="Activate your account" onPress={() => router.push('/student-activate')} />}>
-      <Animated.View entering={FadeInDown.delay(120).springify().damping(18)} style={[{ gap: 16 }, shakeStyle]}>
+      <Animated.View entering={FadeInDown.delay(80).duration(280)} style={[{ gap: 16 }, shakeStyle]}>
         {error ? (
           <Alert>
             <Text size={13} tone="dangerInk">{error}{error.includes('not activated') ? <Text size={13} weight="semibold" tone="dangerInk" onPress={() => router.push('/student-activate')}>  Activate now</Text> : null}</Text>

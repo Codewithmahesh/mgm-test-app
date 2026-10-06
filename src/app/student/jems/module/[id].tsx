@@ -131,7 +131,7 @@ export default function ModuleScreen() {
                     accessibilityRole="button" accessibilityLabel={`${lesson.title}, ${state === 'done' ? 'completed' : state === 'next' ? `up next, ${lesson.minutes} minutes` : 'locked'}`}
                     style={[styles.lesson, isNext && { backgroundColor: c.primarySoft }]}>
                     {state === 'done' ? (
-                      <Animated.View key="done" entering={ZoomIn.springify().damping(12)}><IconTile icon={Check} tone="green" size={44} /></Animated.View>
+                      <Animated.View key="done" entering={ZoomIn.duration(180)}><IconTile icon={Check} tone="green" size={44} /></Animated.View>
                     ) : state === 'next' ? (
                       <View style={styles.playWrap}>
                         <Pulse color={c.primary} size={44} radius={radius.md} />
@@ -205,7 +205,7 @@ export default function ModuleScreen() {
                 </Text>
               </View>
               {mod.mini.passed ? <CircleCheck size={22} color={c.success} />
-                : unlocked ? <Animated.View key="open" entering={ZoomIn.springify().damping(10)}><ArrowRight size={22} color={c.violet} /></Animated.View>
+                : unlocked ? <Animated.View key="open" entering={ZoomIn.duration(180)}><ArrowRight size={22} color={c.violet} /></Animated.View>
                 : <Lock size={20} color={c.violet} />}
             </Animated.View>
           </Tap>

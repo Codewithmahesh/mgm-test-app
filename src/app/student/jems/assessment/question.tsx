@@ -168,7 +168,7 @@ export default function QuestionScreen() {
 
       <GestureDetector gesture={swipe}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Animated.View key={question.id} entering={Enter.springify().damping(20).stiffness(170)} style={{ gap: 16 }}>
+          <Animated.View key={question.id} entering={Enter.duration(220)} style={{ gap: 16 }}>
             <Row gap={8}>
               <Badge tone="blue">{question.skill}</Badge>
               <Badge>{question.difficulty}</Badge>
@@ -179,7 +179,7 @@ export default function QuestionScreen() {
             {question.kind === 'mcq' ? (
               <View style={{ gap: 12 }} accessibilityRole="radiogroup">
                 {question.options?.map((option, i) => (
-                  <Animated.View key={option} entering={FadeInDown.delay(80 + i * 55).springify().damping(18)}>
+                  <Animated.View key={option} entering={FadeInDown.delay(40 + i * 30).duration(220)}>
                     <RadioOption label={option} selected={attempt.answers[question.id] === i} onPress={() => answer(i)} />
                   </Animated.View>
                 ))}
@@ -267,7 +267,7 @@ function Timer({ seconds, low }: { seconds: number; low: boolean }) {
   const beat = useSharedValue(1)
   useEffect(() => {
     if (!low || reduce) { beat.set(1); return }
-    beat.set(withRepeat(withSequence(withTiming(1.07, { duration: 160 }), withTiming(1, { duration: 640 })), -1, false))
+    beat.set(withRepeat(withSequence(withTiming(1.03, { duration: 200 }), withTiming(1, { duration: 800 })), -1, false))
   }, [low, reduce, beat])
   const style = useAnimatedStyle(() => ({ transform: [{ scale: beat.get() }] }))
   const tone = low ? { bg: c.dangerSoft, border: c.dangerBorder, fg: c.dangerInk } : { bg: c.warningSoft, border: c.warningBorder, fg: c.warningInk }
@@ -287,7 +287,7 @@ function FlagButton({ flagged, onPress }: { flagged: boolean; onPress: () => voi
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${tilt.get()}deg` }] }))
   return (
     <Tap onPress={() => {
-      if (!flagged) tilt.set(withSequence(withTiming(-16, { duration: 70 }), withTiming(12, { duration: 90 }), withTiming(-6, { duration: 80 }), withTiming(0, { duration: 70 })))
+      if (!flagged) tilt.set(withSequence(withTiming(-8, { duration: 70 }), withTiming(5, { duration: 90 }), withTiming(0, { duration: 70 })))
       onPress()
     }} haptic={false} accessibilityRole="button" accessibilityLabel={flagged ? 'Remove flag' : 'Flag this question'} accessibilityState={{ selected: flagged }}
       style={[styles.flag, { borderColor: flagged ? c.warning : c.borderStrong, backgroundColor: flagged ? c.warningSoft : c.card }]}>
