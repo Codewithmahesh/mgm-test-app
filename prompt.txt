@@ -1,0 +1,45 @@
+You are working in my existing Expo / React Native app (repo: mgm-test-app, Expo SDK 57, expo-router, TypeScript). The app already has student and faculty flows for an exam portal. I'm adding a new product inside it called JEMS, and I've attached a PDF with the 10 screen designs to build.
+
+## Read first
+1. Read AGENTS.md and follow it. Check the Expo docs for the installed SDK before touching any Expo API.
+2. Read the PDF one page at a time, as images, so you see each screen's real layout. Don't skim it as text.
+3. Learn the existing conventions before writing code. Read at least:
+   - src/theme/colors.ts and src/theme/index.ts (palette, fonts, radius, useColors)
+   - src/components/ui/* (Card, CardHeader, Badge, Button, Progress, StatCard, IconTile, EmptyState, Alert, Divider, Screen, Text, Field, Input)
+   - src/components/brand.tsx (NavyBanner, GridBackground), tab-bar.tsx, app-shell.tsx, auth-shell.tsx
+   - src/app/student/(tabs)/index.tsx and src/app/(auth)/student-login.tsx as reference implementations
+
+## What JEMS is
+JEMS helps final-year students get hired by MSMEs. A student signs in, rates their skills, connects GitHub and LeetCode, takes a skill assessment, and sees a skill report. The report is compared with what MSME roles require to show their gaps. Then they follow a roadmap, with lessons and a mini-assessment for each gap, to close those gaps.
+
+## Screens to build (match the PDF exactly)
+1. Sign in: reuse the existing student sign-in pattern and styling.
+2. Profile + target role (onboarding step 1 of 3)
+3. Skills self-rating (step 2 of 3): category chips, a 3-level segmented control per skill, sticky continue bar
+4. Connect GitHub + LeetCode (step 3 of 3): link inputs with verified state, pick up to 3 repos
+5. Assessment intro
+6. Assessment question: timer, progress bar, code block, radio options, flag, previous and next
+7. Skill report (tab: Report): readiness ring, 3 stat tiles, self-rated vs verified list, DSA card, projects card
+8. Gap analysis: match score, grouped Missing / Weak / Matched lists with priority badges, "Generate my roadmap" CTA
+9. Roadmap (tab: Roadmap): navy banner, vertical timeline of modules (in progress, locked), reassess marker
+10. Module detail: why it matters, lessons, resources, practice checklist, mini-assessment, sticky CTA
+
+Bottom tabs for the JEMS area: Home, Report, Roadmap, Profile. Screens 2-6, 8 and 10 are pushed screens without tabs. Home and Profile aren't designed yet. Build simple placeholders for them in the same style, and tell me you did.
+
+## Rules
+- Use only the existing theme tokens through useColors(), fonts and radius. Never hard-code hex values. Light and dark must both work.
+- Reuse existing ui components. If something is missing (segmented control, score ring, timeline item, radio option card, code block), add it to src/components/ as a small reusable component in the same style.
+- Icons come from lucide-react-native, matching the PDF.
+- Routes go in src/app/ using expo-router. Put the JEMS routes in their own folder (for example src/app/student/jems/) so they don't touch the existing exam screens. Keep non-route code outside src/app/.
+- Data: there is no JEMS backend yet. Create src/lib/jems.ts with typed models and a mock data layer that uses the sample data from the PDF. Keep every screen reading data through that layer so we can swap in real API calls later without touching the UI. Do not modify existing API code.
+- Quality: touch targets at least 44px, accessibilityLabel on icon-only buttons, safe-area handling, scrollable screens, keyboard-aware forms, pull-to-refresh where the existing screens have it.
+- State: keep the onboarding answers (profile, skills, links) in a small context or store so steps 2-4 can go back and forward without losing input.
+- Install packages only with `npx expo install`, and avoid adding new dependencies unless truly needed.
+
+## How to work
+1. First give me a short plan: the file tree you'll create, the new shared components, and anything in the PDF that's ambiguous. Wait for my OK.
+2. Build in this order: shared components + mock data layer, then onboarding (screens 2-4), then assessment (5-6), then results (7-8), then roadmap (9-10).
+3. After each group, run `npx tsc --noEmit` and `npx expo lint` and fix every error before moving on.
+4. At the end, give me a summary of the files created, what's mocked, and what's left to wire up.
+
+If the PDF and the existing app conflict, keep the existing app's conventions and tell me.

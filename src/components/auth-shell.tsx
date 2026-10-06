@@ -11,7 +11,19 @@ import { useColors } from '@/theme'
  * Sign-in layout: the grid canvas fills the whole screen behind the college band (status bar
  * included); the form sits on a cream sheet that slides up over it.
  */
-export function AuthShell({ role, title, subtitle, children, footer }: { role: 'Faculty' | 'Student'; title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode }) {
+export function AuthShell({ role, title, subtitle, children, footer, brand, eyebrow, headline, blurb }: {
+  role: 'Faculty' | 'Student'
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+  footer?: React.ReactNode
+  /** Replaces the college emblem row, for products inside the app (e.g. JEMS). */
+  brand?: React.ReactNode
+  eyebrow?: string
+  /** Optional serif headline and blurb under the eyebrow. */
+  headline?: string
+  blurb?: string
+}) {
   const c = useColors()
   const insets = useSafeAreaInsets()
   return (
@@ -26,13 +38,19 @@ export function AuthShell({ role, title, subtitle, children, footer }: { role: '
               <ChevronLeft size={24} color="#ffffff" />
             </Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 14 }}>
-              <Emblem size={56} />
-              <View style={{ flex: 1 }}>
-                <Text size={17} weight="semibold" color="#ffffff" leading={22}>{COLLEGE_NAME}</Text>
-                <Text size={13} color="rgba(255,255,255,0.55)">{COLLEGE_CITY}</Text>
-              </View>
+              {brand ?? (
+                <>
+                  <Emblem size={56} />
+                  <View style={{ flex: 1 }}>
+                    <Text size={17} weight="semibold" color="#ffffff" leading={22}>{COLLEGE_NAME}</Text>
+                    <Text size={13} color="rgba(255,255,255,0.55)">{COLLEGE_CITY}</Text>
+                  </View>
+                </>
+              )}
             </View>
-            <Eyebrow tone="brand" style={{ marginTop: 22 }}>{role === 'Faculty' ? '// faculty workspace' : '// student portal'}</Eyebrow>
+            <Eyebrow tone="brand" style={{ marginTop: 22 }}>{eyebrow ?? (role === 'Faculty' ? '// faculty workspace' : '// student portal')}</Eyebrow>
+            {headline ? <Text serif size={34} leading={40} tracking={-0.6} color={c.primaryForeground} style={{ marginTop: 12 }}>{headline}</Text> : null}
+            {blurb ? <Text size={15} leading={23} color="rgba(255,255,255,0.65)" style={{ marginTop: 12 }}>{blurb}</Text> : null}
           </View>
           <View style={[styles.sheet, { backgroundColor: c.background, paddingBottom: insets.bottom + 20 }]}>
             <Heading>{title}</Heading>

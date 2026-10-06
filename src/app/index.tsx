@@ -1,6 +1,6 @@
 import { router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { ArrowRight, CheckCircle2, GraduationCap, Presentation, type LucideIcon } from 'lucide-react-native'
+import { ArrowRight, CheckCircle2, GraduationCap, Presentation, Route, type LucideIcon } from 'lucide-react-native'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLLEGE_CITY, COLLEGE_NAME, Emblem, GridBackground, MadeBy, PORTAL_NAME } from '@/components/brand'
@@ -42,6 +42,7 @@ export default function Welcome() {
           <View style={{ gap: 12, marginTop: 20 }}>
             <RoleCard icon={GraduationCap} title="I'm a student" text="Sign in with your college email to take exams and see results." onPress={() => router.push('/student-login')} />
             <RoleCard icon={Presentation} title="I'm faculty" text="Create exam rooms, add questions and watch results live." onPress={() => router.push('/faculty-login')} />
+            <RoleCard icon={Route} title="JEMS for students" text="Check your skills against MSME jobs and follow a roadmap to close the gaps." onPress={() => router.push('/jems-login')} />
           </View>
           <View style={{ marginTop: 'auto', paddingTop: 28 }}><MadeBy /></View>
         </View>
