@@ -52,7 +52,22 @@ export type AssessmentInfo = {
   rules: string[]
 }
 export type Paper = { mode: 'main' | 'mini'; title: string; minutes: number; questions: Question[]; passPercent?: number }
-export type MiniResult = { correct: number; total: number; percent: number; passed: boolean; nextModuleId: string | null }
+/** A mini-assessment question the student got wrong (or skipped), with the right answer and why. */
+export type MissedQuestion = {
+  id: string
+  skill: string
+  topic: string
+  prompt: string
+  code?: string
+  /** null when the question was skipped. */
+  yourAnswer: string | null
+  correctAnswer: string
+  explain: string
+}
+/** A topic to go back over, ranked by how much of it was missed. */
+export type RelearnTopic = { topic: string; skill: string; missed: number; total: number; lesson: string | null; url: string }
+export type MiniAttempt = { percent: number; missed: MissedQuestion[]; relearn: RelearnTopic[] }
+export type MiniResult = MiniAttempt & { correct: number; total: number; passed: boolean; passPercent: number; nextModuleId: string | null }
 
 export type Verdict = 'match' | 'below' | 'above'
 export type Strength = 'strong' | 'ok' | 'weak'
@@ -93,7 +108,8 @@ export type RoadmapModule = {
   lessons: Lesson[]
   resources: Resource[]
   practice: PracticeItem[]
-  mini: { questions: number; passPercent: number; passed: boolean }
+  /** `lastFail` keeps the analysis of the latest failed try until the module is passed. */
+  mini: { questions: number; passPercent: number; passed: boolean; lastFail?: MiniAttempt | null }
 }
 export type Roadmap = { roleShort: string; weeks: number; gapCount: number; reassessWeek: number; modules: RoadmapModule[] }
 
@@ -189,6 +205,75 @@ const TS_EXTRA: (Question & { answer: number })[] = [
   { id: 'ts9', skill: 'TypeScript', difficulty: 'Medium', kind: 'mcq', prompt: "What type does ['a', 'b'] as const have?", options: ['string[]', 'readonly ["a", "b"]', 'any[]', '("a" | "b")[]'], answer: 1 },
   { id: 'ts10', skill: 'TypeScript', difficulty: 'Easy', kind: 'mcq', prompt: 'user?.address?.city when address is undefined gives…', options: ['A TypeError', 'undefined', 'null', 'an empty string'], answer: 1 },
 ]
+
+// What each question tests and why the right answer is right. Kept apart from the questions so it
+// never reaches the student before they submit.
+const REVIEW: Record<string, { topic: string; explain: string }> = {
+  js1: { topic: 'Types and typeof', explain: 'typeof null is "object", a bug kept since the first version of JavaScript. Check for null with === null.' },
+  js2: { topic: 'Array methods', explain: 'map doubles every item to [2, 4, 6], then filter keeps the ones above 2: [4, 6].' },
+  js3: { topic: 'Numbers and precision', explain: 'Floating point cannot store 0.1 or 0.2 exactly, so the sum is 0.30000000000000004.' },
+  js4: { topic: 'Variables and scope', explain: 'A const binding cannot be reassigned. let and var can.' },
+  js5: { topic: 'Event loop', explain: 'Sync code runs first (a, d), then microtasks like promises (c), then timers (b).' },
+  r1: { topic: 'State updates', explain: 'Both calls read the same n from this render, so both set it to 1. Use setN(n => n + 1) to stack updates.' },
+  r2: { topic: 'Effects', explain: 'useEffect runs after render, which is the place to sync with timers, subscriptions or the network.' },
+  r3: { topic: 'Lists and keys', explain: 'Keys let React tell which item is which between renders, so it updates the right rows.' },
+  r4: { topic: 'Effects', explain: 'With an empty dependency array the cleanup runs once, when the component unmounts.' },
+  r5: { topic: 'Refs', explain: 'A ref is a mutable box. Changing ref.current never triggers a re-render.' },
+  r6: { topic: 'State updates', explain: 'Move shared state to the closest common parent and pass it down as props.' },
+  ts1: { topic: 'Type inference', explain: 'A const string can never change, so TypeScript infers the literal type "hi".' },
+  ts2: { topic: 'Generics', explain: 'T is inferred as number from the argument, and the function returns T | undefined.' },
+  ts3: { topic: 'Type narrowing', explain: 'unknown accepts anything but must be narrowed (typeof, instanceof…) before you use it. any skips every check.' },
+  ts4: { topic: 'Utility types', explain: 'Partial<T> makes every property of T optional.' },
+  ts5: { topic: 'Object types', explain: 'A readonly property is set when the object is created and cannot be reassigned after.' },
+  ts6: { topic: 'Type operators', explain: 'keyof gives a union of the property names: "a" | "b".' },
+  ts7: { topic: 'Type narrowing', explain: 'Inside the typeof x === "string" check, TypeScript narrows x to string.' },
+  ts8: { topic: 'Utility types', explain: 'Record<K, V> is an object type whose keys are K and values are V.' },
+  ts9: { topic: 'Type inference', explain: 'as const keeps the literal values and makes the array a readonly tuple.' },
+  ts10: { topic: 'Object types', explain: 'Optional chaining stops at the first null or undefined and gives undefined instead of throwing.' },
+  n1: { topic: 'Core modules', explain: 'fs is the file system module: readFile, writeFile and friends.' },
+  n2: { topic: 'Routing and params', explain: 'Route params are always strings, so id is "42", not 42.' },
+  n3: { topic: 'HTTP status codes', explain: '201 Created is the response for a request that made a new resource.' },
+  n4: { topic: 'Event loop', explain: 'Node runs your JavaScript on one thread and uses the event loop to handle I/O without blocking.' },
+  n5: { topic: 'Configuration and secrets', explain: 'Secrets go in environment variables so they never get committed with the code.' },
+  p1: { topic: 'Built-in collections', explain: 'A set drops duplicates, so {1, 2, 2, 3} has 3 items.' },
+  p2: { topic: 'Comprehensions', explain: 'Only even numbers pass the if, and each is squared: [4, 16].' },
+  p3: { topic: 'Function defaults', explain: 'Default values are created once, so every call shares the same list. Default to None and create it inside.' },
+  p4: { topic: 'Built-in collections', explain: 'Tuples cannot be changed after creation. Lists, dicts and sets can.' },
+  s1: { topic: 'Grouping and aggregation', explain: 'WHERE filters rows before grouping. HAVING filters the groups after aggregation.' },
+  s2: { topic: 'NULL handling', explain: 'Nothing equals NULL, not even NULL. Use IS NULL instead.' },
+  s3: { topic: 'Joins', explain: 'An INNER JOIN keeps only the rows that have a match in both tables.' },
+  s4: { topic: 'Keys and constraints', explain: 'A primary key is unique and never NULL, so it identifies exactly one row.' },
+}
+
+// Where to relearn each topic: the module lesson that covers it (if the module has it) and a reference.
+const TOPIC_GUIDE: Record<string, { lesson?: string; url: string }> = {
+  'Type inference': { lesson: 'Types and interfaces', url: 'https://www.typescriptlang.org/docs/handbook/type-inference.html' },
+  'Object types': { lesson: 'Types and interfaces', url: 'https://www.typescriptlang.org/docs/handbook/2/objects.html' },
+  'Type narrowing': { lesson: 'Types and interfaces', url: 'https://www.typescriptlang.org/docs/handbook/2/narrowing.html' },
+  'Type operators': { lesson: 'Utility types', url: 'https://www.typescriptlang.org/docs/handbook/2/keyof-types.html' },
+  Generics: { lesson: 'Generics', url: 'https://www.typescriptlang.org/docs/handbook/2/generics.html' },
+  'Utility types': { lesson: 'Utility types', url: 'https://www.typescriptlang.org/docs/handbook/utility-types.html' },
+  'Types and typeof': { url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof' },
+  'Array methods': { url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map' },
+  'Numbers and precision': { url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/EPSILON' },
+  'Variables and scope': { url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/const' },
+  'Event loop': { url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Event_loop' },
+  'State updates': { url: 'https://react.dev/learn/queueing-a-series-of-state-updates' },
+  Effects: { url: 'https://react.dev/learn/synchronizing-with-effects' },
+  'Lists and keys': { url: 'https://react.dev/learn/rendering-lists' },
+  Refs: { url: 'https://react.dev/learn/referencing-values-with-refs' },
+  'Core modules': { url: 'https://nodejs.org/api/fs.html' },
+  'Routing and params': { url: 'https://expressjs.com/en/guide/routing.html' },
+  'HTTP status codes': { url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Status' },
+  'Configuration and secrets': { url: 'https://nodejs.org/en/learn/command-line/how-to-read-environment-variables-from-nodejs' },
+  'Built-in collections': { url: 'https://docs.python.org/3/tutorial/datastructures.html' },
+  Comprehensions: { url: 'https://docs.python.org/3/tutorial/datastructures.html#list-comprehensions' },
+  'Function defaults': { url: 'https://docs.python.org/3/tutorial/controlflow.html#default-argument-values' },
+  'Grouping and aggregation': { url: 'https://www.postgresql.org/docs/current/tutorial-agg.html' },
+  'NULL handling': { url: 'https://www.postgresql.org/docs/current/functions-comparison.html' },
+  Joins: { url: 'https://www.postgresql.org/docs/current/tutorial-join.html' },
+  'Keys and constraints': { url: 'https://www.postgresql.org/docs/current/ddl-constraints.html' },
+}
 
 const REPOS: Repo[] = [
   { name: 'shop-api', language: 'TypeScript' },
@@ -392,19 +477,54 @@ export async function submitAssessment(answers: Record<string, Answer>, meta: { 
   db.assessed = true
 }
 
+/**
+ * Works out which questions were missed and which topics to relearn, weakest topic first.
+ * A lesson is only suggested when this module actually has a lesson for that topic.
+ */
+function analyseMini(mod: RoadmapModule, questions: Question[], answers: Record<string, Answer>, keyed: Map<string, number | undefined>): MiniAttempt {
+  const missed: MissedQuestion[] = []
+  const topics = new Map<string, RelearnTopic>()
+  for (const q of questions) {
+    const right = keyed.get(q.id)
+    const given = answers[q.id]
+    const review = REVIEW[q.id] ?? { topic: q.skill, explain: '' }
+    const guide = TOPIC_GUIDE[review.topic]
+    const topic = topics.get(review.topic) ?? {
+      topic: review.topic, skill: q.skill, missed: 0, total: 0,
+      lesson: mod.lessons.find(l => l.title === guide?.lesson)?.title ?? null,
+      url: guide?.url ?? `https://www.google.com/search?q=${encodeURIComponent(`${q.skill} ${review.topic}`)}`,
+    }
+    topic.total += 1
+    topics.set(review.topic, topic)
+    if (given === right) continue
+    topic.missed += 1
+    missed.push({
+      id: q.id, skill: q.skill, topic: review.topic, prompt: q.prompt, code: q.code,
+      yourAnswer: typeof given === 'number' ? q.options?.[given] ?? null : null,
+      correctAnswer: right === undefined ? '' : q.options?.[right] ?? '',
+      explain: review.explain,
+    })
+  }
+  const relearn = [...topics.values()].filter(t => t.missed > 0)
+    .sort((a, b) => b.missed / b.total - a.missed / a.total || b.missed - a.missed)
+  return { percent: Math.round(((questions.length - missed.length) / questions.length) * 100), missed, relearn }
+}
+
 export async function submitMiniAssessment(moduleId: string, answers: Record<string, Answer>): Promise<MiniResult> {
   await wait(700)
   const paper = await getPaper(moduleId)
   const keyed = new Map([...QUESTIONS, ...TS_EXTRA].map(q => [q.id, q.answer]))
-  const correct = paper.questions.filter(q => answers[q.id] === keyed.get(q.id)).length
+  const analysis = analyseMini(findModule(moduleId), paper.questions, answers, keyed)
   const total = paper.questions.length
-  const percent = Math.round((correct / total) * 100)
-  const passed = percent >= (paper.passPercent ?? 70)
+  const passPercent = paper.passPercent ?? 70
+  const passed = analysis.percent >= passPercent
   let nextModuleId: string | null = null
-  const roadmap = db.roadmap
-  if (passed && roadmap) {
-    const i = roadmap.modules.findIndex(m => m.id === moduleId)
-    const mod = roadmap.modules[i]
+  const roadmap = db.roadmap!
+  const i = roadmap.modules.findIndex(m => m.id === moduleId)
+  const mod = roadmap.modules[i]
+  // Keep the analysis on the module so the module and roadmap screens can point at what to relearn.
+  mod.mini.lastFail = passed ? null : clone(analysis)
+  if (passed) {
     mod.mini.passed = true
     mod.status = 'done'
     mod.lessons.forEach(l => { l.done = true })
@@ -412,7 +532,7 @@ export async function submitMiniAssessment(moduleId: string, answers: Record<str
     const next = roadmap.modules[i + 1]
     if (next && next.status === 'locked') { next.status = 'in_progress'; nextModuleId = next.id }
   }
-  return { correct, total, percent, passed, nextModuleId }
+  return { ...analysis, correct: total - analysis.missed.length, total, passed, passPercent, nextModuleId }
 }
 
 export async function getReport(): Promise<SkillReport | null> {

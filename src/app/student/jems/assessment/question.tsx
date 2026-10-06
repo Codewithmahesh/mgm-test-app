@@ -6,7 +6,7 @@ import { AppState, BackHandler, Pressable, ScrollView, StyleSheet, View } from '
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { FadeIn, FadeInDown, FadeInLeft, FadeInRight, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { buzz, CodeBlock, Confetti, enter, Meter, RadioOption, ScoreRing, StickyFooter, Tap, WorkingOverlay } from '@/components/jems'
+import { buzz, CodeBlock, Confetti, enter, FlowScreen, Meter, MissedCard, RadioOption, RelearnCard, ScoreRing, StickyFooter, Tap, WorkingOverlay } from '@/components/jems'
 import { Alert, Badge, Button, Card, Heading, PageLoader, Row, Sheet, Text, Textarea, useFeedback } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { getPaper, submitAssessment, submitMiniAssessment, type Answer, type MiniResult, type Paper } from '@/lib/jems'
@@ -242,7 +242,7 @@ export default function QuestionScreen() {
           eyebrow={paper.mode === 'mini' ? 'Mini-assessment' : 'Skill assessment'}
           title={paper.mode === 'mini' ? 'Checking your answers' : 'Building your skill report'}
           steps={paper.mode === 'mini'
-            ? ['Scoring your answers', 'Updating your roadmap']
+            ? ['Scoring your answers', 'Finding topics to relearn', 'Updating your roadmap']
             : ['Scoring your answers', 'Reviewing your GitHub repos', 'Reading your LeetCode history', 'Comparing with MSME job roles']}
           task={async () => {
             if (paper.mode === 'mini' && moduleId) setResult(await submitMiniAssessment(moduleId, attempt.answers))
@@ -307,10 +307,36 @@ function Legend({ color, border, label }: { color: string; border: string; label
   )
 }
 
-/** Mini-assessment result: ring, verdict and next step, with confetti on a pass. */
+/**
+ * Mini-assessment result: ring, verdict and next step, with confetti on a pass.
+ * Below the pass mark it also breaks down what went wrong and which topics to relearn.
+ */
 function MiniResultView({ result, onRetry }: { result: MiniResult; onRetry: () => void }) {
   const c = useColors()
   useEffect(() => { buzz(result.passed ? 'success' : 'warning') }, [result.passed])
+  if (!result.passed) return (
+    <FlowScreen footer={
+      <StickyFooter row>
+        <Button size="lg" variant="outline" onPress={() => router.back()} style={{ flex: 1 }}>Review the module</Button>
+        <Button size="lg" icon={RotateCcw} onPress={onRetry} style={{ flex: 1 }}>Try again</Button>
+      </StickyFooter>
+    }>
+      <Animated.View entering={enter(0)} style={{ alignItems: 'center', paddingTop: 12 }}>
+        <ScoreRing value={result.percent} size={148} stroke={13} color={c.warning} label={`You scored ${result.percent} percent`} />
+      </Animated.View>
+      <Animated.View entering={enter(1)} style={{ alignItems: 'center', gap: 8 }}>
+        <Heading size={28} center>Almost there</Heading>
+        <Text size={15} leading={22} tone="mutedForeground" center>
+          {`${result.correct} of ${result.total} correct. You need ${result.passPercent}% to pass. ` +
+            (result.relearn.length
+              ? `Go over ${result.relearn.length === 1 ? 'this topic' : `these ${result.relearn.length} topics`}, then try again.`
+              : 'Review the lessons, then try again.')}
+        </Text>
+      </Animated.View>
+      <Animated.View entering={enter(2)}><RelearnCard topics={result.relearn} /></Animated.View>
+      <Animated.View entering={enter(3)}><MissedCard missed={result.missed} /></Animated.View>
+    </FlowScreen>
+  )
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
       <View style={styles.result}>
@@ -318,25 +344,16 @@ function MiniResultView({ result, onRetry }: { result: MiniResult; onRetry: () =
           <ScoreRing value={result.percent} size={168} stroke={14} color={result.passed ? c.success : c.warning} label={`You scored ${result.percent} percent`} />
         </Animated.View>
         <Animated.View entering={enter(1)} style={{ alignItems: 'center', gap: 8 }}>
-          <Heading size={30} center>{result.passed ? 'Module complete!' : 'Almost there'}</Heading>
+          <Heading size={30} center>Module complete!</Heading>
           <Text size={15} tone="mutedForeground" center>
-            {result.passed
-              ? `${result.correct} of ${result.total} correct.${result.nextModuleId ? ' The next module is unlocked.' : ''}`
-              : `${result.correct} of ${result.total} correct. You need 70% to pass. Review the lessons and try again.`}
+            {`${result.correct} of ${result.total} correct.${result.nextModuleId ? ' The next module is unlocked.' : ''}`}
           </Text>
         </Animated.View>
         <Animated.View entering={enter(2)} style={{ alignSelf: 'stretch', gap: 10, marginTop: 12 }}>
-          {result.passed ? (
-            <Button size="lg" full iconRight={ArrowRight} onPress={() => router.dismissTo('/student/jems/roadmap')}>Back to roadmap</Button>
-          ) : (
-            <>
-              <Button size="lg" full icon={RotateCcw} onPress={onRetry}>Try again</Button>
-              <Button size="lg" full variant="outline" onPress={() => router.back()}>Review the module</Button>
-            </>
-          )}
+          <Button size="lg" full iconRight={ArrowRight} onPress={() => router.dismissTo('/student/jems/roadmap')}>Back to roadmap</Button>
         </Animated.View>
       </View>
-      <Confetti run={result.passed ? 1 : 0} />
+      <Confetti run={1} />
     </SafeAreaView>
   )
 }

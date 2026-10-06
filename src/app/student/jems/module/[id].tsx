@@ -4,7 +4,7 @@ import { ArrowRight, BookOpen, Check, ChevronRight, CircleCheck, CirclePlay, Fil
 import { useRef, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import Animated, { LinearTransition, ZoomIn } from 'react-native-reanimated'
-import { buzz, Confetti, enter, FlowScreen, Pulse, StickyFooter, Tap, TickBox, usePop, useShake } from '@/components/jems'
+import { buzz, Confetti, enter, FlowScreen, Pulse, RelearnCard, StickyFooter, Tap, TickBox, usePop, useShake } from '@/components/jems'
 import { Alert, Badge, Button, Card, CardHeader, Divider, Heading, IconTile, PageLoader, Row, ScreenHeader, Text, useFeedback } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { completeLesson, getModule, miniUnlocked, nextLesson, PRIORITY_META, setPracticeDone, type Resource, type RoadmapModule } from '@/lib/jems'
@@ -75,6 +75,7 @@ export default function ModuleScreen() {
   const upNext = nextLesson(mod)
   const lessonsDone = mod.lessons.filter(l => l.done).length
   const practiceDone = mod.practice.filter(p => p.done).length
+  const lastFail = !mod.mini.passed ? mod.mini.lastFail ?? null : null
 
   const footer = locked
     ? <Button size="lg" full icon={Lock} disabled>Finish the previous module first</Button>
@@ -83,7 +84,7 @@ export default function ModuleScreen() {
       : mod.mini.passed
         ? <Button size="lg" full variant="outline" onPress={() => router.back()}>Back to roadmap</Button>
         : unlocked
-          ? <Button size="lg" full icon={Target} onPress={openMini}>Take the mini-assessment</Button>
+          ? <Button size="lg" full icon={Target} onPress={openMini}>{lastFail ? 'Retake the mini-assessment' : 'Take the mini-assessment'}</Button>
           : <Button size="lg" full iconRight={ArrowRight} onPress={() => scroll.current?.scrollToEnd({ animated: true })}>Finish your practice</Button>
 
   return (
@@ -99,6 +100,15 @@ export default function ModuleScreen() {
             <Badge>{`About ${mod.hours} hrs`}</Badge>
           </Row>
         </Animated.View>
+
+        {lastFail && (
+          <Animated.View entering={enter(1)} style={{ gap: 12 }}>
+            <Alert tone="amber" icon={Target}>
+              {`Your last mini-assessment try scored ${lastFail.percent}% (pass is ${mod.mini.passPercent}%). Go over these topics, then retake it.`}
+            </Alert>
+            <RelearnCard topics={lastFail.relearn} />
+          </Animated.View>
+        )}
 
         <Animated.View entering={enter(1)}>
           <Card>
@@ -191,7 +201,7 @@ export default function ModuleScreen() {
               <View style={{ flex: 1 }}>
                 <Text size={17} weight="semibold" color={c.violet}>Mini-assessment</Text>
                 <Text size={14} leading={20} color={c.violet} style={{ marginTop: 2 }}>
-                  {`${mod.mini.questions} questions. Pass at ${mod.mini.passPercent}% to ${mod.index < 5 ? `unlock Module ${mod.index + 1}` : 'finish your roadmap'}.`}
+                  {`${mod.mini.questions} questions. Pass at ${mod.mini.passPercent}% to ${mod.index < 5 ? `unlock Module ${mod.index + 1}` : 'finish your roadmap'}.${lastFail ? ` Last try: ${lastFail.percent}%.` : ''}`}
                 </Text>
               </View>
               {mod.mini.passed ? <CircleCheck size={22} color={c.success} />

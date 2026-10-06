@@ -91,6 +91,7 @@ function ModuleCard({ module: m, previous }: { module: RoadmapModule; previous?:
   const lessonsDone = m.lessons.filter(l => l.done).length
   const locked = m.status === 'locked'
   const current = m.status === 'in_progress'
+  const lastFail = current ? m.mini.lastFail ?? null : null
 
   const gapBadges = (
     <Row gap={8} wrap>
@@ -122,7 +123,13 @@ function ModuleCard({ module: m, previous }: { module: RoadmapModule; previous?:
                   <Meter value={(lessonsDone / m.lessons.length) * 100} delay={500} style={{ flex: 1 }} label="Lessons done" />
                   <Text size={14} tone="mutedForeground">{`${lessonsDone} of ${m.lessons.length} lessons`}</Text>
                 </Row>
-                <Button size="lg" full iconRight={ArrowRight} onPress={open} style={{ marginTop: 4 }}>Continue</Button>
+                {lastFail && lastFail.relearn.length > 0 && (
+                  <View style={[styles.relearn, { backgroundColor: c.warningSoft, borderColor: c.warningBorder }]}>
+                    <Text size={14} weight="semibold" tone="warningInk">{`Mini-assessment: ${lastFail.percent}% · ${lastFail.relearn.length} topic${lastFail.relearn.length === 1 ? '' : 's'} to relearn`}</Text>
+                    <Text size={14} leading={20} tone="warningInk">{lastFail.relearn.slice(0, 3).map(t => t.topic).join(', ') + (lastFail.relearn.length > 3 ? '…' : '')}</Text>
+                  </View>
+                )}
+                <Button size="lg" full iconRight={ArrowRight} onPress={open} style={{ marginTop: 4 }}>{lastFail ? 'Relearn and retake' : 'Continue'}</Button>
               </>
             )}
           </View>
@@ -134,4 +141,5 @@ function ModuleCard({ module: m, previous }: { module: RoadmapModule; previous?:
 
 const styles = StyleSheet.create({
   reassess: { borderWidth: 1, borderStyle: 'dashed', borderRadius: radius.lg, paddingHorizontal: 16, paddingVertical: 14 },
+  relearn: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
 })
