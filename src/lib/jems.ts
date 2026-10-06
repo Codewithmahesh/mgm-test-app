@@ -372,7 +372,17 @@ function reviewRepo(repo: Repo) {
   return { score, project: { name: repo.name, language: repo.language, url: repo.url, tags } }
 }
 
-function buildReport(sources: Sources, picked: string[], roleShort: string): SkillReport {
+/** "Updated 3h ago" for when the GitHub and LeetCode data was last fetched. */
+function updatedLabel(at: number | null) {
+  if (!at) return 'Updated today'
+  const minutes = Math.floor((Date.now() - at) / 60_000)
+  if (minutes < 1) return 'Updated just now'
+  if (minutes < 60) return `Updated ${minutes}m ago`
+  if (minutes < 24 * 60) return `Updated ${Math.floor(minutes / 60)}h ago`
+  return `Updated ${Math.floor(minutes / (24 * 60))}d ago`
+}
+
+function buildReport(sources: Sources, picked: string[], roleShort: string, fetchedAt: number | null): SkillReport {
   const reviews = (sources.github?.repos ?? []).filter(r => picked.includes(r.name)).map(reviewRepo)
   const projects = reviews.length ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length) : 0
   const lc = sources.leetcode ? dsaPart(sources.leetcode) : null
@@ -380,7 +390,7 @@ function buildReport(sources: Sources, picked: string[], roleShort: string): Ski
   const readiness = Math.round(parts.reduce((sum, n) => sum + n, 0) / parts.length)
   const weak = [projects < 60 && 'your projects', lc && lc.score < 60 && 'DSA'].filter(Boolean) as string[]
   return {
-    updatedLabel: 'Updated today',
+    updatedLabel: updatedLabel(fetchedAt),
     readiness,
     headline: `${readiness >= 70 ? 'Strong' : 'Solid'} base for ${roleShort} roles`,
     summary: !lc ? 'Connect LeetCode to get your DSA checked too.'
@@ -466,6 +476,8 @@ const ROADMAP_SEED: Omit<Roadmap, 'roleShort'> = {
 const db = {
   onboarding: null as Onboarding | null,
   sources: { github: null, leetcode: null } as Sources,
+  /** When `sources` was last fetched from GitHub and LeetCode (ms since epoch). */
+  sourcesAt: null as number | null,
   assessed: false,
   roadmap: null as Omit<Roadmap, 'roleShort'> | null,
 }
@@ -491,7 +503,10 @@ export async function getSkillCatalog(): Promise<Skill[]> {
 export async function saveOnboarding(data: Onboarding, sources?: Sources): Promise<void> {
   await wait()
   db.onboarding = clone(data)
-  if (sources) db.sources = clone(sources)
+  if (sources) {
+    db.sources = clone(sources)
+    db.sourcesAt = Date.now()
+  }
 }
 
 export const GITHUB_PATTERN = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})\/?$/
@@ -522,6 +537,42 @@ export async function verifyLeetcode(link: string): Promise<LeetcodeLookup> {
 
 /** A friendlier message for a 404; anything else (offline, rate limit) keeps the server's own message. */
 const notFound = (err: unknown, message: string) => (err && typeof err === 'object' && 'status' in err && err.status === 404 ? new Error(message) : err)
+
+/** Students keep pushing code and solving problems, so the connected profiles are re-read this often. */
+export const SOURCES_MAX_AGE = 6 * 60 * 60 * 1000
+
+export type SourcesRefresh = { refreshed: boolean; failed: string[] }
+let refreshing: Promise<SourcesRefresh> | null = null
+
+/**
+ * Fetches the connected GitHub and LeetCode profiles again. Without `force` it only does so once the data is
+ * SOURCES_MAX_AGE old. A profile that fails keeps its last data; a forced refresh throws if every profile failed.
+ */
+export function refreshSources({ force = false } = {}): Promise<SourcesRefresh> {
+  const { github, leetcode } = db.sources
+  if (!github && !leetcode) return Promise.resolve({ refreshed: false, failed: [] })
+  if (!force && db.sourcesAt && Date.now() - db.sourcesAt < SOURCES_MAX_AGE) return Promise.resolve({ refreshed: false, failed: [] })
+  // One request at a time: the timer, the report opening and the refresh button can all ask at once.
+  refreshing ??= (async () => {
+    const [gh, lc] = await Promise.allSettled([
+      github ? fetchGithub(github.username) : Promise.resolve(null),
+      leetcode ? fetchLeetcode(leetcode.username) : Promise.resolve(null),
+    ])
+    const failed: string[] = []
+    if (gh.status === 'fulfilled' && gh.value) db.sources.github = { username: gh.value.username, name: gh.value.profile.name, repoCount: gh.value.profile.publicRepos, repos: toRepos(gh.value.repos) }
+    else if (gh.status === 'rejected') failed.push('GitHub')
+    if (lc.status === 'fulfilled' && lc.value) db.sources.leetcode = toLeetcode(lc.value)
+    else if (lc.status === 'rejected') failed.push('LeetCode')
+    const connected = Number(Boolean(github)) + Number(Boolean(leetcode))
+    if (failed.length === connected) {
+      const reason = [gh, lc].find(r => r.status === 'rejected') as PromiseRejectedResult
+      throw reason.reason instanceof Error ? reason.reason : new Error("Couldn't update your profiles.")
+    }
+    db.sourcesAt = Date.now()
+    return { refreshed: true, failed }
+  })().finally(() => { refreshing = null })
+  return refreshing
+}
 
 export async function getAssessmentInfo(): Promise<AssessmentInfo> {
   await wait(250)
@@ -622,7 +673,9 @@ export async function submitMiniAssessment(moduleId: string, answers: Record<str
 export async function getReport(): Promise<SkillReport | null> {
   await wait()
   if (!db.assessed) return null
-  return buildReport(db.sources, db.onboarding?.links.repos ?? [], roleOf(db.onboarding?.profile.roleId).short)
+  // Older than six hours: fetch fresh profiles first. Offline or rate-limited, show the last data.
+  await refreshSources().catch(() => {})
+  return buildReport(db.sources, db.onboarding?.links.repos ?? [], roleOf(db.onboarding?.profile.roleId).short, db.sourcesAt)
 }
 
 export async function getGapAnalysis(): Promise<GapAnalysis | null> {

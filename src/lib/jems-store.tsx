@@ -1,8 +1,9 @@
 import { useFocusEffect } from 'expo-router'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 import { COLLEGE_CITY, COLLEGE_NAME } from '@/components/brand'
 import { errorMessage } from './api'
-import { getOnboarding, type Answer, type GithubLookup, type JemsProfile, type LeetcodeLookup, type Level, type Links, type Onboarding } from './jems'
+import { getOnboarding, refreshSources, type Answer, type GithubLookup, type JemsProfile, type LeetcodeLookup, type Level, type Links, type Onboarding } from './jems'
 import { useSession } from './session'
 
 /** An assessment in progress: kept here so leaving the screen (or a crash of the screen) doesn't lose answers. */
@@ -24,6 +25,9 @@ type Store = {
 
 const Context = createContext<Store | null>(null)
 
+/** How often to see whether the connected profiles have passed their six-hour age. */
+const SOURCES_CHECK_MS = 15 * 60 * 1000
+
 export function JemsProvider({ children }: { children: React.ReactNode }) {
   const { student } = useSession()
   const [draft, setDraft] = useState<Onboarding>(() => ({
@@ -43,6 +47,15 @@ export function JemsProvider({ children }: { children: React.ReactNode }) {
   // Start from what the student saved before, if anything.
   useEffect(() => {
     getOnboarding().then(saved => { if (saved) setDraft(saved) }).catch(() => {})
+  }, [])
+
+  // Keep the GitHub and LeetCode data at most six hours old. Timers stop while the app is in the background,
+  // so also check whenever it comes back; refreshSources itself skips the fetch while the data is fresh.
+  useEffect(() => {
+    const check = () => { refreshSources().catch(() => {}) }
+    const timer = setInterval(() => { if (AppState.currentState === 'active') check() }, SOURCES_CHECK_MS)
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') check() })
+    return () => { clearInterval(timer); sub.remove() }
   }, [])
 
   const setProfile = useCallback((patch: Partial<JemsProfile>) => setDraft(d => ({ ...d, profile: { ...d.profile, ...patch } })), [])

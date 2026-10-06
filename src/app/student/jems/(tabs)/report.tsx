@@ -1,13 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
-import { ArrowRight, ChartColumn, CodeXml, ExternalLink } from 'lucide-react-native'
-import { useEffect } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { ArrowRight, ChartColumn, CodeXml, ExternalLink, RefreshCw } from 'lucide-react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import Animated from 'react-native-reanimated'
 import { NavyBanner } from '@/components/brand'
 import { Confetti, enter, Meter, ScoreRing, Tap, useCountUp } from '@/components/jems'
-import { Alert, Badge, Button, Card, CardHeader, Divider, EmptyState, Eyebrow, PageLoader, Row, Screen, ScreenHeader, StatCard, Text, useFeedback } from '@/components/ui'
-import { getReport, getStatus, levelLabel, STRENGTH_TONE, VERDICT_META, type SkillReport } from '@/lib/jems'
+import { Alert, Badge, Button, Card, CardHeader, Divider, EmptyState, Eyebrow, IconButton, PageLoader, Row, Screen, ScreenHeader, StatCard, Text, useFeedback } from '@/components/ui'
+import { errorMessage } from '@/lib/api'
+import { getReport, getStatus, levelLabel, refreshSources, STRENGTH_TONE, VERDICT_META, type SkillReport } from '@/lib/jems'
 import { useJemsData } from '@/lib/jems-store'
 import { useColors, type Tone } from '@/theme'
 
@@ -17,6 +18,24 @@ export default function ReportTab() {
   const { celebrate } = useLocalSearchParams<{ celebrate?: string }>()
   const { data: report, error, reload } = useJemsData(getReport)
   const { data: status } = useJemsData(getStatus)
+  const c = useColors()
+  const { toast } = useFeedback()
+  const [refreshing, setRefreshing] = useState(false)
+
+  /** Fetches the GitHub and LeetCode profiles again now, whatever their age, and rebuilds the report. */
+  const refreshProfiles = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      const { refreshed, failed } = await refreshSources({ force: true })
+      await reload()
+      if (failed.length) toast(`Couldn't update ${failed.join(' and ')}. Showing the last data.`, 'error')
+      else if (refreshed) toast('Profiles updated.', 'success')
+    } catch (err) {
+      toast(errorMessage(err), 'error')
+    } finally {
+      setRefreshing(false)
+    }
+  }, [reload, toast])
 
   // Fresh from the assessment: one confetti burst, then drop the flag so it doesn't replay.
   const burst = celebrate === '1' && report ? 1 : 0
@@ -28,7 +47,14 @@ export default function ReportTab() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Screen header={<ScreenHeader title="Skill report" back={false} right={report ? <Text size={14} tone="mutedForeground" style={{ paddingRight: 8 }}>{report.updatedLabel}</Text> : undefined} />} onRefresh={reload}>
+      <Screen header={<ScreenHeader title="Skill report" back={false} right={report ? (
+        <Row gap={2}>
+          <Text size={13} tone="mutedForeground">{refreshing ? 'Updating…' : report.updatedLabel}</Text>
+          {refreshing
+            ? <View style={styles.refresh}><ActivityIndicator size="small" color={c.primary} /></View>
+            : <IconButton icon={RefreshCw} label="Update GitHub and LeetCode data" size={44} onPress={refreshProfiles} />}
+        </Row>
+      ) : undefined} />} onRefresh={report ? refreshProfiles : reload}>
         {error ? <Alert>{error}</Alert> : report === undefined ? <PageLoader /> : report === null ? (
           <Card>
             <EmptyState icon={ChartColumn} title="No report yet" description="Take the skill assessment and your verified skill report shows up here."
@@ -147,4 +173,5 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', gap: 10 },
   tile: { minWidth: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13, minHeight: 52 },
+  refresh: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 })
